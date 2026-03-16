@@ -1,14 +1,14 @@
 package Modchart.Engine.Modifier.List.False_Paradise;
 
 import Modchart.Backend.Core.ArrowData;
-import Modchart.Backend.Parameter.ModchartParameter;
+import Modchart.Backend.Parameter.ModifierParameters;
 import Backend.Utils.ModchartUtil;
 import openfl.geom.Vector3D;
 
 // i just copy it and change the math.sin to positive to negative so it can make it ClockWise lol
 
 class ClockWise extends Modifier {
-	override public function render(curPos:Vector3D, params:ModchartParameter) {
+	override public function render(curPos:Vector3D, params:ModifierParameters) {
 		var strumTime = params.songTime + params.distance;
 		var centerX = WIDTH * .5;
 		var centerY = HEIGHT * .5;
@@ -28,6 +28,6 @@ class ClockWise extends Modifier {
 		);
 	}
 
-	override public function shouldRun(params:ModchartParameter):Bool
+	override public function shouldRun(params:ModifierParameters):Bool
 		return getPercent('clockwise', params.player) != 0;
 }
