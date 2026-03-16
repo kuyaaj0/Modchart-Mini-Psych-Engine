@@ -1,4 +1,4 @@
-package modchart.engine.events;
+package Modchart.Engine.Events;
 
 enum abstract EventType(String) from String to String {
 	public final EMPTY = 'empty';
