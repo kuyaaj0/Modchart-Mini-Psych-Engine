@@ -8,9 +8,9 @@ import flixel.math.FlxAngle;
 import flixel.math.FlxMath;
 import flixel.math.FlxRect;
 import haxe.ds.Vector;
-import Modchart.Engine.Event.Event;
-import Modchart.Engine.Event.types.AddEvent;
-import Modchart.Engine.Event.types.EaseEvent;
+import Modchart.Engine.Events.Event;
+import Modchart.Engine.Events.types.AddEvent;
+import Modchart.Engine.Events.types.EaseEvent;
 import openfl.geom.Matrix3D;
 
 using StringTools;
