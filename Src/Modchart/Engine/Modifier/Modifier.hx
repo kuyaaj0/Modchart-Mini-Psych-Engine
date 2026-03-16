@@ -1,4 +1,4 @@
-package modchart.engine.modifiers;
+package Modchart.Engine.Modifier;
 
 import flixel.FlxG;
 import flixel.math.FlxMath;
