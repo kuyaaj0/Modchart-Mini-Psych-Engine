@@ -1,6 +1,6 @@
-package Src.Backend.Math;
+package Backend.Math;
 
-import Src.Backend.Utils.ModchartUtil;
+import Backend.Utils.ModchartUtil;
 
 #if !openfl_debug
 @:fileXml('tags="haxe,release"')
