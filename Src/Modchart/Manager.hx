@@ -11,11 +11,11 @@ import Modchart.Backend.Core.Node.NodeFunction;
 import Modchart.Backend.Parameter.VisualParameters;
 import Modchart.Backend.Graphics.CtxRenderer;
 import Modchart.Backend.Graphics.DrawCommand;
-import Modchart.Backend.Graphics.renderers.*;
+import Modchart.Backend.Graphics.Renders.*;
 import Backend.Utils.ModchartUtil;
 import Modchart.Engine.Modifier.List.*;
 import Modchart.Events.*;
-import Modchart.Events.types.*;
+import Modchart.Events.Types.*;
 
 /**
  * This assembles the modchart components, including:
