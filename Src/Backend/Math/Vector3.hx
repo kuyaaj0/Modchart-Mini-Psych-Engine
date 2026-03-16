@@ -1,4 +1,4 @@
-package Src.Backend.Math;
+package Backend.Math;
 
 import openfl.geom.Vector3D;
 
