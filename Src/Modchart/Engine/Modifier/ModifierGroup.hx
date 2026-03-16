@@ -12,8 +12,8 @@ import Modchart.Backend.Parameter.VisualParameters;
 import Modchart.Backend.Macro.ModifiersMacro;
 import Backend.Utils.ModchartUtil;
 import Modchart.Engine.Modifier.Modifier;
-import Modchart.Engine.Modifier.list.*;
-import Modchart.Engine.Modifier.list.false_paradise.*;
+import Modchart.Engine.Modifier.List.*;
+import Modchart.Engine.Modifier.List.False_Paradise.*;
 
 #if !openfl_debug
 @:fileXml('tags="haxe,release"')
