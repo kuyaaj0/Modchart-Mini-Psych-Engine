@@ -7,7 +7,7 @@ import flixel.FlxG;
 import flixel.math.FlxAngle;
 import modchart.Config;
 import modchart.backend.graphics.ModchartCamera3D;
-import modchart.backend.util.ModchartUtil;
+import Src.Backend.Utils.ModchartUtil;
 import openfl.geom.Vector3D;
 
 /**
