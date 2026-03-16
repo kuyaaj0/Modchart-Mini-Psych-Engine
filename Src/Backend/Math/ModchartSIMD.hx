@@ -1,13 +1,13 @@
-package Src.Backend.Math;
+package Backend.Math;
 
 #if cpp
 import cpp.NativeMath;
 #end
 import flixel.FlxG;
 import flixel.math.FlxAngle;
-import modchart.Config;
-import modchart.backend.graphics.ModchartCamera3D;
-import Src.Backend.Utils.ModchartUtil;
+import Modchart.Config;
+import Modchart.Backend.Graphics.ModchartCamera3D;
+import Backend.Utils.ModchartUtil;
 import openfl.geom.Vector3D;
 
 /**
