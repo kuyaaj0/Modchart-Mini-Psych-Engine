@@ -1,4 +1,4 @@
-package Src.Backend.Utils;
+package Backend.Utils;
 
 import flixel.FlxCamera;
 import flixel.FlxG;
@@ -8,9 +8,9 @@ import flixel.math.FlxAngle;
 import flixel.math.FlxMath;
 import flixel.math.FlxRect;
 import haxe.ds.Vector;
-import Src.Modchart.Engine.Event.Event;
-import Src.Modchart.Engine.Event.types.AddEvent;
-import Src.Modchart.Engine.Event.types.EaseEvent;
+import Modchart.Engine.Event.Event;
+import Modchart.Engine.Event.types.AddEvent;
+import Modchart.Engine.Event.types.EaseEvent;
 import openfl.geom.Matrix3D;
 
 using StringTools;
@@ -32,7 +32,7 @@ using StringTools;
 	}
 
 	@:pure
-	inline public static function resolveCameras(playfield:Src.Modchart.Engine.PlayField, item:FlxSprite):Array<FlxCamera> {
+	inline public static function resolveCameras(playfield:Modchart.Engine.PlayField, item:FlxSprite):Array<FlxCamera> {
 		@:privateAccess
 		var playfieldCameras = #if (flixel >= "5.7.0") playfield.getCameras() #else playfield._cameras #end;
 
