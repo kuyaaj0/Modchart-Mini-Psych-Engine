@@ -1,60 +1,81 @@
 package Mobile;
 
-import flixel.FlxSprite;
 import flixel.FlxG;
-import backend.Settings;
+import flixel.FlxSprite;
+import flixel.input.touch.FlxTouch;
 
-class VirtualButton extends FlxSprite
+class VirtualButton
 {
-    public var isPressed:Bool = false;
+    public var x:Float;
+    public var y:Float;
+    public var width:Float;
+    public var height:Float;
 
-    public function new(x:Float, y:Float, width:Int = 80, height:Int = 80)
+    public var isPressed:Bool = false;
+    public var visible:Bool = true;
+
+    // Optional: visual sprite for button
+    public var sprite:FlxSprite;
+
+    public function new(x:Float, y:Float, width:Float, height:Float)
     {
-        super(x, y);
-        makeGraphic(width, height, 0x7F00FF00); // semi-transparent green
-        visible = true;
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+
+        sprite = new FlxSprite(x - width/2, y - height/2);
+        sprite.makeGraphic(width, height, 0x7700FF00); // semi-transparent green
+        sprite.visible = visible;
     }
 
-    // Update touch status
+    // Update button each frame
     public function update():Void
     {
+        if(!visible) { isPressed = false; return; }
+
         isPressed = false;
 
-        // Only check touch if visible
-        if(!visible) return;
-
+        // Check all active touches
         for(touch in FlxG.touches.list)
         {
-            if(touch.screenX >= x && touch.screenX <= x + width &&
-               touch.screenY >= y && touch.screenY <= y + height)
+            if(checkTouch(touch.screenX, touch.screenY))
             {
                 isPressed = true;
                 break;
             }
         }
+
+        // Update sprite visibility
+        sprite.visible = visible;
     }
 
-    // Check if a note at this position is clicked (latest mobile feature)
-    public function checkNoteClick(noteX:Float, noteY:Float, noteWidth:Float, noteHeight:Float):Bool
+    // Draw the sprite if visible
+    public function draw():Void
     {
-        if(!Settings.mobileClickOnNotePosition || !visible) return false;
-
-        for(touch in FlxG.touches.list)
-        {
-            if(touch.screenX >= noteX && touch.screenX <= noteX + noteWidth &&
-               touch.screenY >= noteY && touch.screenY <= noteY + noteHeight)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        if(visible) sprite.draw();
     }
 
-    // Optional: move button dynamically (for custom D-Pad position)
+    // Move the button to a new position
     public function moveTo(newX:Float, newY:Float):Void
     {
         x = newX;
         y = newY;
+        sprite.x = newX - width/2;
+        sprite.y = newY - height/2;
+    }
+
+    // Check if a note area was clicked
+    public function checkNoteClick(noteX:Float, noteY:Float, noteW:Float, noteH:Float):Bool
+    {
+        if(!visible) return false;
+
+        return !(noteX > x + width || noteX + noteW < x || noteY > y + height || noteY + noteH < y);
+    }
+
+    private function checkTouch(touchX:Float, touchY:Float):Bool
+    {
+        return (touchX >= x - width/2 && touchX <= x + width/2 &&
+                touchY >= y - height/2 && touchY <= y + height/2);
     }
 }
