@@ -50,6 +50,7 @@ class NoteSpawner {
     // UPDATE
     // =========================
     public function update(elapsed:Float):Void {
+        updateChart();
         updatePlayer(elapsed);
         updateOpponent(elapsed);
     }
@@ -94,17 +95,47 @@ class NoteSpawner {
         }
     }
 
-    function handleHit(note:StrumNote, isHolding:Bool):Void {
-        note.hit = true;
+    public function getRating(note:StrumNote, strumY:Float):String
+{
+    var diff = Math.abs(note.y - strumY);
 
-        if(note.isSustainNote) {
-            note.beingHeld = true;
-        } else {
-            note.destroyNote();
-            playerNotes.remove(note);
-        }
+    if(diff <= 20) return "SICK";
+    if(diff <= 40) return "GOOD";
+    if(diff <= 60) return "BAD";
+    return "MISS";
+}
 
-        ClientPrefs.score += 100;
+    function handleHit(note:StrumNote, isHolding:Bool):Void
+{
+    var rating = getRating(note, playerStrums[note.noteData].y);
+
+    switch(rating)
+    {
+        case "SICK":
+            ClientPrefs.score += 350;
+        case "GOOD":
+            ClientPrefs.score += 200;
+        case "BAD":
+            ClientPrefs.score += 100;
+        case "MISS":
+            ClientPrefs.health -= 0.1;
+    }
+
+    note.hit = true;
+
+    if(note.isSustainNote)
+        note.beingHeld = true;
+    else {
+        note.destroyNote();
+        playerNotes.remove(note);
+    }
+
+    // 🔥 COMBO
+    if(rating != "MISS")
+        PlayState.instance.combo++;
+    else {
+        PlayState.instance.combo = 0;
+}
         ClientPrefs.health = CoolUtil.clamp(ClientPrefs.health + 0.02, 0, 2);
     }
 
