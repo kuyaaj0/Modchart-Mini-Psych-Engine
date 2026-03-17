@@ -10,34 +10,40 @@ import Backend.Settings as ClientPrefs;
 import Backend.Input.InputManager;
 import Backend.Utils.CoolUtil;
 
+import Mobile.MobileControls;
+import Mobile.TouchNotes;
+import Mobile.VirtualButton;
+
 class PlayState extends FlxState
 {
     // =========================
-    //  HEALTH SYSTEM
+    // HEALTH SYSTEM
     // =========================
-
     public var health:Float = 1.0;
     public var smoothHealth:Float = 1.0;
 
     // =========================
-    //  SCORE SYSTEM
+    // SCORE SYSTEM
     // =========================
-
     public var score:Int = 0;
     public var displayScore:Int = 0;
 
     // =========================
-    //  UI
+    // UI
     // =========================
-
     var scoreText:FlxText;
     var healthBar:FlxSprite;
 
     // =========================
-    //  STRUM TEST
+    // STRUM TEST
     // =========================
-
     var playerStrums:Array<FlxSprite> = [];
+
+    // =========================
+    // MOBILE INPUT
+    // =========================
+    var mobileControls:MobileControls;
+    var touchNotes:TouchNotes;
 
     override public function create()
     {
@@ -51,33 +57,37 @@ class PlayState extends FlxState
         add(bg);
 
         // =========================
-        //  STRUM LINE
+        // STRUM LINE
         // =========================
-
         for (i in 0...4)
         {
             var strum = new FlxSprite(200 + (i * 120), 500);
             strum.makeGraphic(80, 80, FlxColor.GRAY);
-
             playerStrums.push(strum);
             add(strum);
         }
 
         // =========================
-        //  HEALTH BAR
+        // HEALTH BAR
         // =========================
-
         healthBar = new FlxSprite(50, 50).makeGraphic(300, 20, FlxColor.GREEN);
         add(healthBar);
 
         // =========================
-        //  SCORE TEXT
+        // SCORE TEXT
         // =========================
-
         scoreText = new FlxText(50, 80, 0, "Score: 0", 24);
         add(scoreText);
 
-        // Apply settings at start
+        // =========================
+        // MOBILE CONTROLS SETUP
+        // =========================
+        mobileControls = new MobileControls();
+        touchNotes = new TouchNotes(mobileControls);
+
+        // =========================
+        // APPLY SETTINGS
+        // =========================
         applyScrollSettings();
     }
 
@@ -87,6 +97,10 @@ class PlayState extends FlxState
 
         InputManager.update();
 
+        // Update mobile controls
+        mobileControls.update();
+        touchNotes.update();
+
         handleInput();
         updateHealth();
         updateScore();
@@ -94,27 +108,27 @@ class PlayState extends FlxState
     }
 
     // =========================
-    //  INPUT
+    // INPUT HANDLING (KEYBOARD + MOBILE)
     // =========================
-
     function handleInput()
     {
-        if (InputManager.leftPress())
+        // Keyboard input
+        if (InputManager.leftPress() || mobileControls.isLanePressed(0))
             hitNote(0);
 
-        if (InputManager.downPress())
+        if (InputManager.downPress() || mobileControls.isLanePressed(1))
             hitNote(1);
 
-        if (InputManager.upPress())
+        if (InputManager.upPress() || mobileControls.isLanePressed(2))
             hitNote(2);
 
-        if (InputManager.rightPress())
+        if (InputManager.rightPress() || mobileControls.isLanePressed(3))
             hitNote(3);
     }
 
     function hitNote(lane:Int)
     {
-        // Simple test feedback
+        // Visual feedback
         playerStrums[lane].color = FlxColor.WHITE;
 
         // Increase score
@@ -126,9 +140,8 @@ class PlayState extends FlxState
     }
 
     // =========================
-    //  HEALTH UPDATE
+    // HEALTH UPDATE
     // =========================
-
     function updateHealth()
     {
         if (ClientPrefs.smoothHealth)
@@ -144,17 +157,14 @@ class PlayState extends FlxState
             smoothHealth = health;
         }
 
-        // Death check (REAL value)
+        // Death check
         if (health <= 0)
-        {
             trace("Player Died");
-        }
     }
 
     // =========================
-    //  SCORE UPDATE
+    // SCORE UPDATE
     // =========================
-
     function updateScore()
     {
         if (ClientPrefs.smoothScore)
@@ -172,15 +182,12 @@ class PlayState extends FlxState
     }
 
     // =========================
-    //  UI UPDATE
+    // UI UPDATE
     // =========================
-
     function updateUI()
     {
-        // Health bar scale
         healthBar.scale.x = smoothHealth;
 
-        // Score text
         if (ClientPrefs.scoreSeparator)
             scoreText.text = "Score: " + CoolUtil.formatNumber(displayScore);
         else
@@ -188,9 +195,8 @@ class PlayState extends FlxState
     }
 
     // =========================
-    // ⬇️ SCROLL SETTINGS
+    // SCROLL SETTINGS
     // =========================
-
     function applyScrollSettings()
     {
         if (ClientPrefs.downScroll)
