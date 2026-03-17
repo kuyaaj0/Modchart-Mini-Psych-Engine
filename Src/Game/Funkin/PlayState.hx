@@ -44,6 +44,7 @@ class PlayState extends FlxState
     // =========================
     var healthBar:FlxSprite;
     var scoreText:FlxText;
+    var ratingText:FlxText;
     var comboText:FlxText;
     var missText:FlxText;
     var debugText:FlxText;
@@ -187,6 +188,9 @@ class PlayState extends FlxState
 
         scoreText = new FlxText(50, 80, 400, "Score: 0", 24);
         add(scoreText);
+
+        ratingText = new FlxText(FlxG.width / 2 - 50, 300, 200, "", 32);
+        add(ratingText);
 
         comboText = new FlxText(50, 110, 400, "Combo: 0", 20);
         add(comboText);
