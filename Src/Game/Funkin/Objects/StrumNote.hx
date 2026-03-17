@@ -1,40 +1,29 @@
 package Game.Funkin.Objects;
 
 import Backend.Settings as ClientPrefs;
-import flixel.FlxSprite;
+import Backend.Timing.Conductor;
 
-class StrumNote extends Note
-{
-    public var strumX:Float = 0;
-    public var strumY:Float = 0;
+class StrumNote extends Note {
+    public var strumX:Float;
+    public var strumY:Float;
 
-    public var speed:Float = 1.0;
-
-    public function new(strumTime:Float, lane:Int, mustPress:Bool)
+    public function new(strumTime:Float, lane:Int, direction:Direction,
+        ?isSustain:Bool=false, ?sustainLength:Float=0, ?texture:String=null)
     {
-        super(strumTime, lane, mustPress);
+        super(strumTime, lane, direction, isSustain, sustainLength, texture);
     }
 
-    /**
-     * Makes the note follow the strum line (Mini Psych style)
-     */
-    public function followStrum(laneX:Array<Float>, strumY:Float, songPos:Float)
-    {
-        // Set base position
+    public function followStrum(laneX:Array<Float>, strumY:Float):Void {
         this.strumX = laneX[noteData];
         this.strumY = strumY;
 
-        // Apply lane position
         x = strumX;
 
-        // Calculate distance from strum line
-        var distance:Float = (songPos - strumTime) * 0.45 * speed;
+        var distance = (Conductor.songPosition - strumTime) * 0.45;
+        if(!ClientPrefs.downScroll) distance *= -1;
 
-        // Handle scroll direction
-        if (!ClientPrefs.downScroll)
-            distance *= -1;
-
-        // Apply vertical position
         y = strumY + distance;
+
+        updateTail();
     }
 }
