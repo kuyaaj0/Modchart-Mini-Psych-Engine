@@ -31,11 +31,21 @@ class MobileControls
         // ===== LANE BUTTONS =====
         if(Settings.mobileLaneTiles)
         {
-            // Center lanes horizontally, spaced for 4 notes
             var screenCenter:Float = FlxG.width / 2;
-            var spacing:Float = 120; // space between lane buttons
-            var startX:Float = screenCenter - 1.5 * spacing;
+            var spacing:Float = 120;
+            var startX:Float;
             var yPos:Float = FlxG.height - 200;
+
+            if(Settings.mobileUseOfficialLayout)
+            {
+                // Centered lanes (official mobile style)
+                startX = screenCenter - 1.5 * spacing;
+            }
+            else
+            {
+                // Normal layout: player lanes on right
+                startX = FlxG.width - 500;
+            }
 
             for(i in 0...4)
             {
@@ -48,13 +58,28 @@ class MobileControls
         // ===== D-PAD BUTTONS =====
         if(Settings.mobileDPad || Settings.mobileCustomDPad)
         {
-            // Default D-Pad positions (can be overridden by custom)
-            var positions:Array<{x:Float, y:Float}> = [
-                {x:100, y:FlxG.height - 200}, // left
-                {x:200, y:FlxG.height - 100}, // down
-                {x:200, y:FlxG.height - 300}, // up
-                {x:300, y:FlxG.height - 200}  // right
-            ];
+            var positions:Array<{x:Float, y:Float}>;
+
+            if(Settings.mobileUseOfficialLayout)
+            {
+                // Official mobile positions (left-bottom)
+                positions = [
+                    {x:100, y:FlxG.height - 200}, // left
+                    {x:200, y:FlxG.height - 100}, // down
+                    {x:200, y:FlxG.height - 300}, // up
+                    {x:300, y:FlxG.height - 200}  // right
+                ];
+            }
+            else
+            {
+                // Normal D-Pad positions
+                positions = [
+                    {x:50, y:FlxG.height - 200}, 
+                    {x:150, y:FlxG.height - 100}, 
+                    {x:150, y:FlxG.height - 300}, 
+                    {x:250, y:FlxG.height - 200}
+                ];
+            }
 
             for(i in 0...4)
             {
@@ -71,7 +96,6 @@ class MobileControls
     // =========================
     public function update():Void
     {
-        // Hide buttons if keyboard mode or PC keys are pressed
         if(Settings.keyboardMode || FlxG.keys.any())
         {
             for(b in buttons)
