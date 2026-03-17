@@ -20,6 +20,8 @@ import Mobile.TouchNotes;
 
 class PlayState extends FlxState
 {
+    public static var instance:PlayState;
+    
     // =========================
     // GAMEPLAY STATS
     // =========================
@@ -31,6 +33,11 @@ class PlayState extends FlxState
 
     public var combo:Int = 0;
     public var misses:Int = 0;
+
+    // Accuracy Stuff
+    public var totalNotes:Int = 0;
+    public var hitNotes:Int = 0;
+    public var accuracy:Float = 100;
 
     // =========================
     // UI
@@ -69,6 +76,7 @@ class PlayState extends FlxState
     override public function create()
     {
         super.create();
+        instance = this;
 
         InputManager.init();
 
@@ -242,9 +250,27 @@ class PlayState extends FlxState
             ? "Score: " + CoolUtil.formatNumber(displayScore)
             : "Score: " + displayScore;
 
+        accuracyText.text = "Accuracy: " + Std.string(Math.round(accuracy)) + "%";
+
         comboText.text = "Combo: " + combo;
         missText.text = "Misses: " + misses;
     }
+
+    // Updated Accuracy i think
+    function updateAccuracy(rating:String):Void
+{
+    totalNotes++;
+
+    switch(rating)
+    {
+        case "SICK": hitNotes += 1;
+        case "GOOD": hitNotes += 0.8;
+        case "BAD": hitNotes += 0.5;
+        case "MISS": hitNotes += 0;
+    }
+
+    accuracy = (hitNotes / totalNotes) * 100;
+}
 
     // =========================
     // SCROLL SETTINGS
