@@ -217,8 +217,8 @@ class NoteSpawner
 
     public function spawnOnBeat(beat:Int):Void
     {
-        for(note in playerNotes)
-            note.flash(0.1);
+        //for(note in playerNotes)
+            //note.flash(0.1);
     }
 
     // =========================
