@@ -1,4 +1,4 @@
-package Game.Funkin.Objects;
+package Game.Funkin.Spawner;
 
 import flixel.FlxG;
 import flixel.FlxSprite;
@@ -12,6 +12,10 @@ class NoteSpawner {
 
     public var playerStrums:Array<FlxSprite>;
     public var opponentStrums:Array<FlxSprite>;
+
+    public var chartNotes:Array<Dynamic> = [];
+    public var spawnIndex:Int = 0;
+    public var spawnAhead:Float = 1500; // ms before hit
 
     public function new(playerStrums:Array<FlxSprite>, opponentStrums:Array<FlxSprite>) {
         this.playerStrums = playerStrums;
@@ -35,6 +39,12 @@ class NoteSpawner {
 
         FlxG.state.add(note);
     }
+
+    public function loadChart(data:Dynamic):Void
+{
+    chartNotes = data.notes;
+    spawnIndex = 0;
+}
 
     // =========================
     // UPDATE
