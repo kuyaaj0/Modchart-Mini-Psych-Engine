@@ -1,10 +1,10 @@
-package backend.timing;
+package Backend.Timing;
 
 import flixel.FlxG;
 import flixel.util.FlxTimer;
 import flixel.math.FlxMath;
 import haxe.ds.ArraySort;
-import backend.Utils.ModchartUtil;
+import Backend.Utils.ModchartUtil;
 
 /**
  * Conductor
@@ -100,15 +100,17 @@ class Conductor
      */
     public static function update(elapsed:Float)
     {
-        if(!started || paused)
+        if (!started || paused)
             return;
 
         lastSongPosition = songPosition;
 
+        // Advance song time
         songPosition += elapsed * 1000 * playbackRate;
 
         updateStep();
         updateBeat();
+        updateBPMChanges();
     }
 
     /**
@@ -118,11 +120,11 @@ class Conductor
     {
         var newStep:Int = Math.floor(songPosition / stepCrochet);
 
-        if(newStep != curStep)
+        if (newStep != curStep)
         {
             curStep = newStep;
 
-            if(onStep != null)
+            if (onStep != null)
                 onStep();
         }
     }
@@ -134,12 +136,26 @@ class Conductor
     {
         var newBeat:Int = Math.floor(songPosition / crochet);
 
-        if(newBeat != curBeat)
+        if (newBeat != curBeat)
         {
             curBeat = newBeat;
 
-            if(onBeat != null)
+            if (onBeat != null)
                 onBeat();
+        }
+    }
+
+    /**
+     * Apply BPM changes dynamically
+     */
+    static function updateBPMChanges()
+    {
+        for (event in bpmChangeMap)
+        {
+            if (curStep >= event.step && bpm != event.bpm)
+            {
+                changeBPM(event.bpm);
+            }
         }
     }
 
@@ -217,12 +233,26 @@ class Conductor
     }
 
     /**
-     * Check if note can be hit
+     * Check if note can be hit (basic)
      */
     public static function canHit(noteTime:Float):Bool
     {
         var diff = Math.abs(noteTime - songPosition);
         return diff <= safeZoneOffset;
+    }
+
+    /**
+     * Rating system (optional)
+     */
+    public static function getRating(noteTime:Float):String
+    {
+        var diff = Math.abs(noteTime - songPosition);
+
+        if (diff <= 22) return "sick";
+        if (diff <= 45) return "good";
+        if (diff <= 90) return "bad";
+
+        return "miss";
     }
 
     /**
