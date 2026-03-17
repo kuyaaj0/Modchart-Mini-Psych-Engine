@@ -5,174 +5,151 @@ import flixel.FlxSprite;
 import flixel.util.FlxColor;
 import Backend.Settings as ClientPrefs;
 import Backend.Timing.Conductor;
+import Game.Funkin.Objects.Note;
 
 class NoteSpawner
 {
     // =========================
-    // SPAWNER SETTINGS
+    // STRUMS
     // =========================
     public var playerStrums:Array<FlxSprite>;
-    public var notes:Array<FlxSprite>;
+    public var opponentStrums:Array<FlxSprite>;
+
+    // =========================
+    // NOTE LISTS
+    // =========================
+    public var playerNotes:Array<Note>;
+    public var opponentNotes:Array<Note>;
+
+    // =========================
+    // SPAWNER SETTINGS
+    // =========================
     public var spawnTimer:Float = 0;
-
-    // =========================
-    // NOTE CONFIG
-    // =========================
-    public var noteSpeed:Float = 300; // pixels per second
-    public var laneWidth:Float = 120;
+    public var noteSpeed:Float = 300;
     public var noteSize:Int = 80;
+    public var laneWidth:Float = 120;
 
-    // Hit timing window
-    public var hitWindow:Float = 45;
+    // =========================
+    // IMAGE SPRITE OPTION
+    // =========================
+    public var useNoteImage:Bool = false;
+    public var noteImage:String = "note.png"; // path to sprite image if needed
 
-    public function new(playerStrums:Array<FlxSprite>)
+    public function new(playerStrums:Array<FlxSprite>, opponentStrums:Array<FlxSprite>)
     {
         this.playerStrums = playerStrums;
-        this.notes = [];
+        this.opponentStrums = opponentStrums;
+        this.playerNotes = [];
+        this.opponentNotes = [];
     }
 
     // =========================
-    // UPDATE SPAWNER (CALL EVERY FRAME)
+    // INIT (CALL AFTER PLAYSTATE CREATE)
+    // =========================
+    public function init():Void
+    {
+        spawnTimer = 0;
+    }
+
+    // =========================
+    // UPDATE (CALL EVERY FRAME)
     // =========================
     public function update(elapsed:Float):Void
     {
-        spawnTimer += elapsed;
-
-        for(note in notes)
+        // =========================
+        // PLAYER NOTES
+        // =========================
+        for(note in playerNotes)
         {
             if(note.hit) continue;
 
-            // Move note
-            note.y += (ClientPrefs.downScroll ? 1 : -1) * noteSpeed * elapsed * ClientPrefs.scrollSpeed;
+            note.update(elapsed, ClientPrefs.downScroll, ClientPrefs.scrollSpeed);
 
-            // Miss detection
-            var hitLine = playerStrums[note.lane].y;
-            if((ClientPrefs.downScroll && note.y > hitLine + hitWindow) || (!ClientPrefs.downScroll && note.y < hitLine - hitWindow))
-            {
-                missNote(note);
-            }
+            if(note.isMissed(playerStrums[note.lane].y))
+                missNote(note, true);
+        }
 
-            // Optional: remove off-screen notes
-            if(note.y < -noteSize*2 || note.y > FlxG.height + noteSize*2)
-            {
-                removeNote(note);
-            }
+        // =========================
+        // OPPONENT NOTES
+        // =========================
+        for(note in opponentNotes)
+        {
+            if(note.hit) continue;
+
+            note.update(elapsed, ClientPrefs.downScroll, ClientPrefs.scrollSpeed);
+
+            // Optional: opponent notes can’t be missed
         }
     }
 
     // =========================
-    // SPAWN RANDOM NOTE (FOR TESTING)
+    // SPAWN RANDOM NOTES (TEST)
     // =========================
-    public function spawnRandomNote():Void
+    public function spawnRandomPlayerNote():Void
     {
         var lane = Math.floor(Math.random() * playerStrums.length);
-        var tailLength = Math.floor(Math.random() * 3); // random tail 0-2
-        spawnNoteOnStep(lane, tailLength);
+        var tailLength = Math.floor(Math.random() * 3); // optional random tail
+        spawnNote(playerStrums, playerNotes, lane, tailLength, true);
+    }
+
+    public function spawnRandomOpponentNote():Void
+    {
+        var lane = Math.floor(Math.random() * opponentStrums.length);
+        var tailLength = Math.floor(Math.random() * 2);
+        spawnNote(opponentStrums, opponentNotes, lane, tailLength, false);
     }
 
     // =========================
-    // SPAWN NOTE ON STEP / BEAT
+    // SPAWN NOTE FUNCTION
     // =========================
-    public function spawnNoteOnStep(lane:Int, tailLength:Int = 0):Void
+    public function spawnNote(strums:Array<FlxSprite>, noteList:Array<Note>, lane:Int, tailLength:Int = 0, isPlayer:Bool = true):Void
     {
-        if(lane < 0 || lane >= playerStrums.length) return;
+        if(lane < 0 || lane >= strums.length) return;
 
-        var startY = ClientPrefs.downScroll ? -noteSize : FlxG.height + noteSize;
-        var color = getLaneColor(lane);
+        var startY:Float = ClientPrefs.downScroll ? -noteSize : FlxG.height + noteSize;
+        var noteColor:Int = getLaneColor(lane);
 
-        var note = createNote(playerStrums[lane].x, startY, lane, color, tailLength);
-        addNote(note);
-    }
+        var note = new Note(strums[lane].x, startY, lane, noteSize, noteSpeed, noteColor);
 
-    // =========================
-    // CREATE NOTE INSTANCE
-    // =========================
-    private function createNote(x:Float, y:Float, lane:Int, color:Int, tailLength:Int):FlxSprite
-    {
-        var note = new FlxSprite(x, y);
-        note.makeGraphic(noteSize, noteSize, color);
-        note.lane = lane;
-        note.hit = false;
-
-        // Tail (hold notes)
-        if(tailLength > 0)
+        // Use image sprite if enabled
+        if(useNoteImage)
         {
-            note.tail = [];
-            for(i in 1...tailLength + 1)
-            {
-                var tailPiece = new FlxSprite(x, y + i * noteSize);
-                tailPiece.makeGraphic(noteSize, noteSize, FlxColor.DARK_BLUE);
-                tailPiece.lane = lane;
-                tailPiece.hit = false;
-                note.tail.push(tailPiece);
-            }
+            note.loadGraphic(noteImage);
+        }
+        else
+        {
+            note.makeGraphic(noteSize, noteSize, noteColor);
         }
 
-        return note;
-    }
+        // Tail creation for hold notes
+        if(tailLength > 0)
+            note.createTail(tailLength, noteSize);
 
-    // =========================
-    // ADD NOTE TO LIST
-    // =========================
-    private function addNote(note:FlxSprite):Void
-    {
-        notes.push(note);
-        FlxG.state.add(note);
+        // Add to PlayState
+        noteList.push(note);
+        FlxG.state.add(note.sprite);
 
-        // Add tail pieces if any
         if(note.tail != null)
-        {
             for(piece in note.tail)
                 FlxG.state.add(piece);
-        }
     }
 
     // =========================
-    // REMOVE NOTE
+    // HIT NOTE IN LANE
     // =========================
-    private function removeNote(note:FlxSprite):Void
+    public function hitNoteInLane(lane:Int, isPlayer:Bool = true):Void
     {
-        notes.remove(note);
-        FlxG.state.remove(note);
+        var notesList = if(isPlayer) playerNotes else opponentNotes;
+        var strums = if(isPlayer) playerStrums else opponentStrums;
 
-        // Remove tail
-        if(note.tail != null)
-        {
-            for(piece in note.tail)
-            {
-                piece.hit = true;
-                FlxG.state.remove(piece);
-            }
-        }
-    }
+        var closest:Note = null;
+        var minDistance:Float = 9999;
 
-    // =========================
-    // MISS NOTE HANDLER
-    // =========================
-    private function missNote(note:FlxSprite):Void
-    {
-        removeNote(note);
-
-        // Penalty
-        ClientPrefs.health -= 0.05;
-        ClientPrefs.health = Math.max(0, Math.min(ClientPrefs.health, 2));
-
-        trace("Missed note on lane: " + note.lane);
-    }
-
-    // =========================
-    // HIT NOTE (CALL WHEN INPUT)
-    // =========================
-    public function hitNoteInLane(lane:Int):Void
-    {
-        var closest:FlxSprite = null;
-        var minDistance = 9999;
-
-        for(note in notes)
+        for(note in notesList)
         {
             if(note.lane == lane && !note.hit)
             {
-                var dist = Math.abs(note.y - playerStrums[lane].y);
+                var dist = Math.abs(note.y - strums[lane].y);
                 if(dist < minDistance)
                 {
                     closest = note;
@@ -183,22 +160,37 @@ class NoteSpawner
 
         if(closest != null)
         {
-            removeNote(closest);
+            closest.hit = true;
+            removeNote(closest, notesList);
 
-            // Score & health
-            ClientPrefs.score += 100;
-            ClientPrefs.health += 0.02;
-            ClientPrefs.health = Math.max(0, Math.min(ClientPrefs.health, 2));
-
-            // Optional: visual feedback
-            var strum = playerStrums[lane];
-            strum.color = FlxColor.WHITE;
-            FlxTween.color(strum, strum.color, getLaneColor(lane), 0.15);
+            // Optional: score/health handled by PlayState
         }
     }
 
     // =========================
-    // GET LANE COLOR
+    // MISS NOTE
+    // =========================
+    public function missNote(note:Note, isPlayer:Bool):Void
+    {
+        note.hit = true;
+        removeNote(note, if(isPlayer) playerNotes else opponentNotes);
+    }
+
+    // =========================
+    // REMOVE NOTE FUNCTION
+    // =========================
+    private function removeNote(note:Note, notesList:Array<Note>):Void
+    {
+        notesList.remove(note);
+        FlxG.state.remove(note.sprite);
+
+        if(note.tail != null)
+            for(piece in note.tail)
+                FlxG.state.remove(piece);
+    }
+
+    // =========================
+    // LANE COLORS
     // =========================
     private function getLaneColor(lane:Int):Int
     {
@@ -213,13 +205,19 @@ class NoteSpawner
     }
 
     // =========================
-    // DEBUG: REMOVE ALL NOTES
+    // OPTIONAL: SPAWN ON STEP/BEAT
     // =========================
-    public function clearAllNotes():Void
+    public function spawnOnStep(step:Int):Void
     {
-        for(note in notes)
-            removeNote(note);
+        // Example: spawn note every 4 steps
+        if(step % 4 == 0)
+            spawnRandomPlayerNote();
+    }
 
-        notes = [];
+    public function spawnOnBeat(beat:Int):Void
+    {
+        // Example: flash notes or spawn optional notes
+        for(note in playerNotes)
+            note.flash(0.1);
     }
 }
