@@ -2,15 +2,18 @@ package Mobile;
 
 import flixel.FlxSprite;
 import Backend.Settings;
+import game.funkin.PlayState;
 
 class TouchNotes
 {
     public var mobileControls:MobileControls;
     public var noteSprites:Array<FlxSprite>;
+    public var playState:PlayState;
 
-    public function new(mobileControls:MobileControls)
+    public function new(mobileControls:MobileControls, playState:PlayState)
     {
         this.mobileControls = mobileControls;
+        this.playState = playState;
         noteSprites = [];
     }
 
@@ -25,18 +28,22 @@ class TouchNotes
     {
         if(Settings.keyboardMode) return;
 
-        for(note in noteSprites)
+        for(i in 0...noteSprites.length)
         {
-            if(mobileControls.checkNoteClick(note.x, note.y, note.width, note.height))
+            var note = noteSprites[i];
+
+            // Check if mobile lane button is pressed for this lane
+            if(mobileControls.isLanePressed(i))
             {
-                hitNote(note);
+                playState.hitNote(i);
+                continue;
+            }
+
+            // Check if note itself was clicked (official mobile input)
+            if(Settings.mobileClickOnNotePosition && mobileControls.checkNoteClick(note.x, note.y, note.width, note.height))
+            {
+                playState.hitNote(i);
             }
         }
-    }
-
-    private function hitNote(note:FlxSprite):Void
-    {
-        // Placeholder: link with PlayState hit logic
-        trace('Note pressed at: ' + note.x + ', ' + note.y);
     }
 }
