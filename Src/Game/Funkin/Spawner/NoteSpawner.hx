@@ -133,6 +133,10 @@ class NoteSpawner {
             ClientPrefs.health -= 0.1;
     }
     PlayState.instance.updateAccuracy(rating);
+    PlayState.instance.ratingText.text = rating;
+    PlayState.instance.ratingText.alpha = 1;
+    
+    FlxTween.tween(PlayState.instance.ratingText, {alpha: 0}, 0.5);
 
     note.hit = true;
 
