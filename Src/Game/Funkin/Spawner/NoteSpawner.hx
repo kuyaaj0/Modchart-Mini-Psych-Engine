@@ -132,6 +132,7 @@ class NoteSpawner {
         case "MISS":
             ClientPrefs.health -= 0.1;
     }
+    PlayState.instance.updateAccuracy(rating);
 
     note.hit = true;
 
@@ -179,6 +180,7 @@ class NoteSpawner {
 
         PlayState.instance.combo = 0;
         PlayState.instance.misses++;
+        PlayState.instance.updateAccuracy("MISS");
 
         ClientPrefs.health = CoolUtil.clamp(ClientPrefs.health - 0.05, 0, 2);
     }
