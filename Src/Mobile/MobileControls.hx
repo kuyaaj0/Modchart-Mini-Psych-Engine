@@ -2,7 +2,6 @@ package Mobile;
 
 import flixel.FlxG;
 import flixel.FlxSprite;
-import flixel.input.touch.FlxTouch;
 import Backend.Settings;
 
 class MobileControls
@@ -19,9 +18,6 @@ class MobileControls
         setupButtons();
     }
 
-    // =========================
-    // Initialize buttons based on Settings
-    // =========================
     private function setupButtons():Void
     {
         buttons = [];
@@ -31,25 +27,30 @@ class MobileControls
         // ===== LANE BUTTONS =====
         if(Settings.mobileLaneTiles)
         {
-            var screenCenter:Float = FlxG.width / 2;
-            var spacing:Float = 120;
-            var startX:Float;
             var yPos:Float = FlxG.height - 200;
+            var positions:Array<Float>;
 
-            if(Settings.mobileUseOfficialLayout)
+            if(Settings.mobileOfficialLayout)
             {
-                // Centered lanes (official mobile style)
-                startX = screenCenter - 1.5 * spacing;
+                // Centered & spaced like official FNF mobile
+                var screenCenter = FlxG.width / 2;
+                var spacing:Float = 120;
+                positions = [
+                    screenCenter - 1.5 * spacing,
+                    screenCenter - 0.5 * spacing,
+                    screenCenter + 0.5 * spacing,
+                    screenCenter + 1.5 * spacing
+                ];
             }
             else
             {
-                // Normal layout: player lanes on right
-                startX = FlxG.width - 500;
+                // Classic: right side lanes
+                positions = [800, 920, 1040, 1160];
             }
 
             for(i in 0...4)
             {
-                var btn = new VirtualButton(startX + i*spacing, yPos, 100, 100);
+                var btn = new VirtualButton(positions[i], yPos, 100, 100);
                 laneButtons.push(btn);
                 buttons.push(btn);
             }
@@ -58,28 +59,12 @@ class MobileControls
         // ===== D-PAD BUTTONS =====
         if(Settings.mobileDPad || Settings.mobileCustomDPad)
         {
-            var positions:Array<{x:Float, y:Float}>;
-
-            if(Settings.mobileUseOfficialLayout)
-            {
-                // Official mobile positions (left-bottom)
-                positions = [
-                    {x:100, y:FlxG.height - 200}, // left
-                    {x:200, y:FlxG.height - 100}, // down
-                    {x:200, y:FlxG.height - 300}, // up
-                    {x:300, y:FlxG.height - 200}  // right
-                ];
-            }
-            else
-            {
-                // Normal D-Pad positions
-                positions = [
-                    {x:50, y:FlxG.height - 200}, 
-                    {x:150, y:FlxG.height - 100}, 
-                    {x:150, y:FlxG.height - 300}, 
-                    {x:250, y:FlxG.height - 200}
-                ];
-            }
+            var positions:Array<{x:Float, y:Float}> = [
+                {x:100, y:FlxG.height - 200}, // left
+                {x:200, y:FlxG.height - 100}, // down
+                {x:200, y:FlxG.height - 300}, // up
+                {x:300, y:FlxG.height - 200}  // right
+            ];
 
             for(i in 0...4)
             {
@@ -91,15 +76,11 @@ class MobileControls
         }
     }
 
-    // =========================
-    // Update every frame
-    // =========================
     public function update():Void
     {
         if(Settings.keyboardMode || FlxG.keys.any())
         {
-            for(b in buttons)
-                b.visible = false;
+            for(b in buttons) b.visible = false;
         }
         else
         {
@@ -111,37 +92,24 @@ class MobileControls
         }
     }
 
-    // =========================
-    // Draw all visible buttons
-    // =========================
     public function draw():Void
     {
         for(b in buttons)
-            if(b.visible)
-                b.draw();
+            if(b.visible) b.draw();
     }
 
-    // =========================
-    // Lane button pressed
-    // =========================
     public function isLanePressed(lane:Int):Bool
     {
         if(lane < 0 || lane >= laneButtons.length) return false;
         return laneButtons[lane].isPressed;
     }
 
-    // =========================
-    // D-Pad button pressed (0-left,1-down,2-up,3-right)
-    // =========================
     public function isDPadPressed(index:Int):Bool
     {
         if(index < 0 || index >= dpadButtons.length) return false;
         return dpadButtons[index].isPressed;
     }
 
-    // =========================
-    // Move D-Pad for custom positions
-    // =========================
     public function moveDPad(newPositions:Array<{x:Float, y:Float}>):Void
     {
         if(!Settings.mobileCustomDPadPosition) return;
@@ -152,9 +120,6 @@ class MobileControls
         }
     }
 
-    // =========================
-    // Check if a note at screen coordinates is clicked
-    // =========================
     public function checkNoteClick(noteX:Float, noteY:Float, noteWidth:Float, noteHeight:Float):Bool
     {
         if(!Settings.mobileClickOnNotePosition) return false;
@@ -167,9 +132,6 @@ class MobileControls
         return false;
     }
 
-    // =========================
-    // Optional: align lane buttons with note positions
-    // =========================
     public function alignLanesWithNotes(notePositions:Array<Float>):Void
     {
         if(!Settings.mobileLaneTiles) return;
