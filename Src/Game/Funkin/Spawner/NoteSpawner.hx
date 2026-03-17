@@ -1,111 +1,204 @@
-package Game.Funkin.Objects;
+package Game.Funkin.Spawner;
 
 import flixel.FlxG;
-import flixel.group.FlxTypedGroup;
-import flixel.math.FlxMath;
+import flixel.FlxSprite;
+import flixel.util.FlxColor;
+import Backend.Settings as ClientPrefs;
 import Backend.Timing.Conductor;
 
-/**
- * NoteSpawner
- * Handles spawning and updating notes during gameplay
- */
 class NoteSpawner
 {
-    public var notes:FlxTypedGroup<Note>;
-    public var laneX:Array<Float>; // X positions for each lane
-    public var hitZoneY:Float; // Y position where player hits notes
-    public var speedFactor:Float = 0.5; // multiplier for note speed
+    // =========================
+    // SPAWNER SETTINGS
+    // =========================
+    public var playerStrums:Array<FlxSprite>;
+    public var notes:Array<FlxSprite>;
+    public var spawnTimer:Float = 0;
 
-    public function new(?hitZoneY:Float = 400)
+    // =========================
+    // NOTE CONFIG
+    // =========================
+    public var noteSpeed:Float = 300; // pixels per second
+    public var laneWidth:Float = 120;
+    public var noteSize:Int = 80;
+
+    public function new(playerStrums:Array<FlxSprite>)
     {
-        notes = new FlxTypedGroup<Note>();
-        this.hitZoneY = hitZoneY;
-
-        // Default lane positions (LEFT, DOWN, UP, RIGHT)
-        laneX = [100, 160, 220, 280];
+        this.playerStrums = playerStrums;
+        this.notes = [];
     }
 
-    /**
-     * Spawn a note
-     * @param strumTime - time in ms when note should be hit
-     * @param noteData - lane index (0=LEFT,1=DOWN,2=UP,3=RIGHT)
-     * @param holdLength - optional hold length in ms for sustain notes
-     */
-    public function spawnNote(strumTime:Float, noteData:Int, ?holdLength:Float = 0):Note
-    {
-        var n = new Note();
-        n.strumTime = strumTime;
-        n.noteData = noteData;
-        n.mustPress = true; // player note
-        n.isSustainNote = holdLength > 0;
-        n.sustainLength = holdLength;
-
-        n.x = laneX[noteData];
-        n.y = hitZoneY - ((strumTime - Conductor.songPosition) * speedFactor);
-
-        if(n.isSustainNote)
-        {
-            // Create tail for sustain note
-            var tail = new Note();
-            tail.isSustainNote = true;
-            tail.parent = n;
-            tail.x = n.x;
-            tail.y = n.y;
-            n.tail.push(tail);
-            notes.add(tail);
-        }
-
-        notes.add(n);
-        return n;
-    }
-
-    /**
-     * Update all notes
-     */
+    // =========================
+    // UPDATE SPAWNER (CALL EVERY FRAME)
+    // =========================
     public function update(elapsed:Float):Void
     {
-        for(n in notes.members)
+        // Update all notes
+        for(note in notes)
         {
-            if(n == null) continue;
+            if(note.hit) continue;
 
-            // Update Y position based on Conductor
-            var timeToHit = n.strumTime - Conductor.songPosition;
-            n.y = hitZoneY - (timeToHit * speedFactor);
+            // Move note
+            note.y += (ClientPrefs.downScroll ? 1 : -1) * noteSpeed * elapsed * ClientPrefs.scrollSpeed;
 
-            // Update tail position
-            for(tail in n.tail)
+            // Miss detection
+            var hitLine = playerStrums[note.lane].y;
+            if((ClientPrefs.downScroll && note.y > hitLine + 50) || (!ClientPrefs.downScroll && note.y < hitLine - 50))
             {
-                tail.y = n.y + n.height; // simple tail placement
-            }
-
-            // Remove off-screen or passed notes
-            if(n.y > 600) // screen bottom
-            {
-                notes.remove(n, true);
+                missNote(note);
             }
         }
     }
 
-    /**
-     * Simple hit detection
-     * @param note - note to check
-     * @param tolerance - how far from hit zone is allowed
-     */
-    public function canHit(note:Note, ?tolerance:Float = 45):Bool
+    // =========================
+    // SPAWN RANDOM NOTE (TEST)
+    // =========================
+    public function spawnRandomNote():Void
     {
-        return Math.abs(note.y - hitZoneY) <= tolerance;
+        var lane = Math.floor(Math.random() * playerStrums.length);
+        var startY = ClientPrefs.downScroll ? -noteSize : FlxG.height + noteSize;
+        var color = getLaneColor(lane);
+
+        var note = createNote(playerStrums[lane].x, startY, lane, color, 0);
+        addNote(note);
     }
 
-    /**
-     * Remove a note (hit or miss)
-     */
-    public function removeNote(note:Note):Void
+    // =========================
+    // SPAWN NOTE ON BEAT (SYNCED TO STEP)
+    // =========================
+    public function spawnNoteOnStep(lane:Int, tailLength:Int = 0):Void
     {
+        if(lane < 0 || lane >= playerStrums.length) return;
+
+        var startY = ClientPrefs.downScroll ? -noteSize : FlxG.height + noteSize;
+        var color = getLaneColor(lane);
+
+        var note = createNote(playerStrums[lane].x, startY, lane, color, tailLength);
+        addNote(note);
+    }
+
+    // =========================
+    // CREATE NOTE INSTANCE
+    // =========================
+    private function createNote(x:Float, y:Float, lane:Int, color:Int, tailLength:Int):FlxSprite
+    {
+        var note = new FlxSprite(x, y);
+        note.makeGraphic(noteSize, noteSize, color);
+        note.lane = lane;
+        note.hit = false;
+
+        // Tail (hold notes)
+        if(tailLength > 0)
+        {
+            note.tail = [];
+            for(i in 1...tailLength + 1)
+            {
+                var tailPiece = new FlxSprite(x, y + i * noteSize);
+                tailPiece.makeGraphic(noteSize, noteSize, FlxColor.DARK_BLUE);
+                tailPiece.lane = lane;
+                tailPiece.hit = false;
+                note.tail.push(tailPiece);
+            }
+        }
+
+        return note;
+    }
+
+    // =========================
+    // ADD NOTE TO LIST
+    // =========================
+    private function addNote(note:FlxSprite):Void
+    {
+        notes.push(note);
+        FlxG.state.add(note);
+
+        // Add tail pieces if any
         if(note.tail != null)
         {
-            for(t in note.tail)
-                notes.remove(t, true);
+            for(piece in note.tail)
+                FlxG.state.add(piece);
         }
-        notes.remove(note, true);
+    }
+
+    // =========================
+    // MISS NOTE HANDLER
+    // =========================
+    private function missNote(note:FlxSprite):Void
+    {
+        note.hit = true;
+        notes.remove(note);
+        FlxG.state.remove(note);
+
+        // Remove tail
+        if(note.tail != null)
+        {
+            for(piece in note.tail)
+            {
+                piece.hit = true;
+                FlxG.state.remove(piece);
+            }
+        }
+
+        // Penalty
+        ClientPrefs.health -= 0.05;
+        ClientPrefs.health = Math.max(0, Math.min(ClientPrefs.health, 2));
+
+        trace("Missed note on lane: " + note.lane);
+    }
+
+    // =========================
+    // HIT NOTE (CALL WHEN INPUT)
+    // =========================
+    public function hitNoteInLane(lane:Int):Void
+    {
+        var closest:FlxSprite = null;
+        var minDistance = 9999;
+
+        for(note in notes)
+        {
+            if(note.lane == lane && !note.hit)
+            {
+                var dist = Math.abs(note.y - playerStrums[lane].y);
+                if(dist < minDistance)
+                {
+                    closest = note;
+                    minDistance = dist;
+                }
+            }
+        }
+
+        if(closest != null)
+        {
+            closest.hit = true;
+            notes.remove(closest);
+            FlxG.state.remove(closest);
+
+            // Remove tail pieces
+            if(closest.tail != null)
+            {
+                for(piece in closest.tail)
+                    FlxG.state.remove(piece);
+            }
+
+            // Score & health
+            ClientPrefs.score += 100;
+            ClientPrefs.health += 0.02;
+            ClientPrefs.health = Math.max(0, Math.min(ClientPrefs.health, 2));
+        }
+    }
+
+    // =========================
+    // UTILITY: LANE COLORS
+    // =========================
+    private function getLaneColor(lane:Int):Int
+    {
+        switch(lane)
+        {
+            case 0: return FlxColor.RED;
+            case 1: return FlxColor.GREEN;
+            case 2: return FlxColor.YELLOW;
+            case 3: return FlxColor.BLUE;
+            default: return FlxColor.WHITE;
+        }
     }
 }
