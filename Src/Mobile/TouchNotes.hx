@@ -2,7 +2,7 @@ package Mobile;
 
 import flixel.FlxSprite;
 import Backend.Settings;
-import game.funkin.PlayState;
+import Game.Funkin.PlayState;
 
 class TouchNotes
 {
