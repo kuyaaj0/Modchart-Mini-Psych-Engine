@@ -1,5 +1,7 @@
 package backend.Input;
 
+import Backend.KeyBindManager;
+
 import flixel.FlxG;
 
 /**
