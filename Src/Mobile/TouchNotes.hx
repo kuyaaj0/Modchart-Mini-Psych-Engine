@@ -1,59 +1,43 @@
 package Mobile;
 
-import flixel.FlxG;
+import flixel.FlxSprite;
+import Backend.Settings;
 
 class TouchNotes
 {
-    public var touchZones:Array<VirtualButton>; // Player touch zones
+    public var mobileControls:MobileControls;
+    public var noteSprites:Array<FlxSprite>;
 
-    public function new(notePositions:Array<{x:Float, y:Float, width:Float, height:Float}>)
+    public function new(mobileControls:MobileControls)
     {
-        touchZones = [];
-        for(pos in notePositions)
-        {
-            var zone = new VirtualButton(pos.x, pos.y, pos.width, pos.height);
-            touchZones.push(zone);
-        }
+        this.mobileControls = mobileControls;
+        noteSprites = [];
     }
 
-    // Update each frame
+    // Add a note sprite to track
+    public function addNote(note:FlxSprite):Void
+    {
+        noteSprites.push(note);
+    }
+
+    // Update notes input
     public function update():Void
     {
-        for(zone in touchZones)
+        if(Settings.keyboardMode) return;
+
+        for(note in noteSprites)
         {
-            zone.update();
+            if(mobileControls.checkNoteClick(note.x, note.y, note.width, note.height))
+            {
+                // Trigger note hit logic here
+                hitNote(note);
+            }
         }
     }
 
-    // Draw touch zones (optional for debug)
-    public function draw():Void
+    private function hitNote(note:FlxSprite):Void
     {
-        for(zone in touchZones)
-            zone.draw();
-    }
-
-    // Check if a specific note index is pressed
-    public function isNotePressed(noteIndex:Int):Bool
-    {
-        if(noteIndex < 0 || noteIndex >= touchZones.length) return false;
-        return touchZones[noteIndex].isPressed;
-    }
-
-    // Check if a note rectangle is pressed
-    public function checkNoteClick(noteX:Float, noteY:Float, noteWidth:Float, noteHeight:Float):Bool
-    {
-        for(zone in touchZones)
-        {
-            if(zone.checkNoteClick(noteX, noteY, noteWidth, noteHeight))
-                return true;
-        }
-        return false;
-    }
-
-    // Move a note zone to new position (for hold notes or lane rearranging)
-    public function moveNoteZone(index:Int, newX:Float, newY:Float):Void
-    {
-        if(index < 0 || index >= touchZones.length) return;
-        touchZones[index].moveTo(newX, newY);
+        // Placeholder: connect with your PlayState note hit system
+        trace('Note pressed at: ' + note.x + ', ' + note.y);
     }
 }
