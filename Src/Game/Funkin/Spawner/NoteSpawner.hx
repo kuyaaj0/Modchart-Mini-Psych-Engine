@@ -1,96 +1,111 @@
-package Game.Funkin.Spawners;
+package Game.Funkin.Objects;
 
-import Game.Funkin.Objects.Note;
-import Game.Funkin.Objects.StrumNote;
-import Backend.Timing.Conductor;
 import flixel.FlxG;
-import flixel.util.FlxTimer;
+import flixel.group.FlxTypedGroup;
+import flixel.math.FlxMath;
+import Backend.Timing.Conductor;
 
 /**
  * NoteSpawner
- * Handles spawning notes during gameplay and modcharts
+ * Handles spawning and updating notes during gameplay
  */
 class NoteSpawner
 {
-    public var spawnedNotes:Array<Note> = [];
-    public var lastNoteByLane:Array<Note> = [];
+    public var notes:FlxTypedGroup<Note>;
+    public var laneX:Array<Float>; // X positions for each lane
+    public var hitZoneY:Float; // Y position where player hits notes
+    public var speedFactor:Float = 0.5; // multiplier for note speed
 
-    public function new()
+    public function new(?hitZoneY:Float = 400)
     {
-        // Initialize lastNoteByLane for 4 lanes (or mania)
-        lastNoteByLane = [null, null, null, null];
+        notes = new FlxTypedGroup<Note>();
+        this.hitZoneY = hitZoneY;
+
+        // Default lane positions (LEFT, DOWN, UP, RIGHT)
+        laneX = [100, 160, 220, 280];
     }
 
     /**
      * Spawn a note
-     * @param strumTime: when the note should appear
-     * @param lane: 0-left, 1-down, 2-up, 3-right
-     * @param isPlayer: whether this is player note
-     * @param isSustain: if this note is a hold
-     * @param editorMode: optional, for chart editor
+     * @param strumTime - time in ms when note should be hit
+     * @param noteData - lane index (0=LEFT,1=DOWN,2=UP,3=RIGHT)
+     * @param holdLength - optional hold length in ms for sustain notes
      */
-    public function spawnNote(strumTime:Float, lane:Int, isPlayer:Bool = true, ?isSustain:Bool = false, ?editorMode:Bool = false)
+    public function spawnNote(strumTime:Float, noteData:Int, ?holdLength:Float = 0):Note
     {
-        var prevNote:Note = lastNoteByLane[lane];
-        var newNote:Note = new Note(strumTime, lane, prevNote, isSustain, editorMode);
+        var n = new Note();
+        n.strumTime = strumTime;
+        n.noteData = noteData;
+        n.mustPress = true; // player note
+        n.isSustainNote = holdLength > 0;
+        n.sustainLength = holdLength;
 
-        newNote.mustPress = isPlayer;
+        n.x = laneX[noteData];
+        n.y = hitZoneY - ((strumTime - Conductor.songPosition) * speedFactor);
 
-        spawnedNotes.push(newNote);
-
-        // Update last note reference for sustain linking
-        if (isSustain)
-            lastNoteByLane[lane] = newNote;
-        else
-            lastNoteByLane[lane] = null;
-
-        return newNote;
-    }
-
-    /**
-     * Spawn multiple notes for a chart line
-     * @param notesData: array of lane indices (0-3) to spawn
-     * @param strumTime: time for this line
-     * @param isPlayer: player or opponent
-     */
-    public function spawnNotesLine(notesData:Array<Int>, strumTime:Float, isPlayer:Bool = true)
-    {
-        for (lane in notesData)
+        if(n.isSustainNote)
         {
-            spawnNote(strumTime, lane, isPlayer);
+            // Create tail for sustain note
+            var tail = new Note();
+            tail.isSustainNote = true;
+            tail.parent = n;
+            tail.x = n.x;
+            tail.y = n.y;
+            n.tail.push(tail);
+            notes.add(tail);
         }
+
+        notes.add(n);
+        return n;
     }
 
     /**
-     * Clear all notes
+     * Update all notes
      */
-    public function clearAll()
+    public function update(elapsed:Float):Void
     {
-        spawnedNotes = [];
-        lastNoteByLane = [null, null, null, null];
-    }
-
-    /**
-     * Update notes each frame
-     * Should be called inside PlayState.update()
-     */
-    public function update(elapsed:Float)
-    {
-        for (note in spawnedNotes)
+        for(n in notes.members)
         {
-            if (!note.spawned && Conductor.songPosition >= note.strumTime - 2000) // 2 sec pre-load
+            if(n == null) continue;
+
+            // Update Y position based on Conductor
+            var timeToHit = n.strumTime - Conductor.songPosition;
+            n.y = hitZoneY - (timeToHit * speedFactor);
+
+            // Update tail position
+            for(tail in n.tail)
             {
-                note.spawned = true;
-                // Optional: add to PlayState display group here
-                // PlayState.instance.add(note);
+                tail.y = n.y + n.height; // simple tail placement
             }
 
-            // Follow strum notes if needed
-            if (note.spawned && note.mustPress)
+            // Remove off-screen or passed notes
+            if(n.y > 600) // screen bottom
             {
-                // example: link to lane strum position
-                // note.followStrumNote(PlayState.instance.playerStrums[note.noteData], Conductor.crochet, PlayState.instance.songSpeed);
+                notes.remove(n, true);
             }
         }
+    }
+
+    /**
+     * Simple hit detection
+     * @param note - note to check
+     * @param tolerance - how far from hit zone is allowed
+     */
+    public function canHit(note:Note, ?tolerance:Float = 45):Bool
+    {
+        return Math.abs(note.y - hitZoneY) <= tolerance;
+    }
+
+    /**
+     * Remove a note (hit or miss)
+     */
+    public function removeNote(note:Note):Void
+    {
+        if(note.tail != null)
+        {
+            for(t in note.tail)
+                notes.remove(t, true);
+        }
+        notes.remove(note, true);
     }
 }
