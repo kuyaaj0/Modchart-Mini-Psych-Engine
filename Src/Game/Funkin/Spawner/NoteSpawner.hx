@@ -22,6 +22,9 @@ class NoteSpawner
     public var laneWidth:Float = 120;
     public var noteSize:Int = 80;
 
+    // Hit timing window
+    public var hitWindow:Float = 45;
+
     public function new(playerStrums:Array<FlxSprite>)
     {
         this.playerStrums = playerStrums;
@@ -33,7 +36,8 @@ class NoteSpawner
     // =========================
     public function update(elapsed:Float):Void
     {
-        // Update all notes
+        spawnTimer += elapsed;
+
         for(note in notes)
         {
             if(note.hit) continue;
@@ -43,28 +47,31 @@ class NoteSpawner
 
             // Miss detection
             var hitLine = playerStrums[note.lane].y;
-            if((ClientPrefs.downScroll && note.y > hitLine + 50) || (!ClientPrefs.downScroll && note.y < hitLine - 50))
+            if((ClientPrefs.downScroll && note.y > hitLine + hitWindow) || (!ClientPrefs.downScroll && note.y < hitLine - hitWindow))
             {
                 missNote(note);
+            }
+
+            // Optional: remove off-screen notes
+            if(note.y < -noteSize*2 || note.y > FlxG.height + noteSize*2)
+            {
+                removeNote(note);
             }
         }
     }
 
     // =========================
-    // SPAWN RANDOM NOTE (TEST)
+    // SPAWN RANDOM NOTE (FOR TESTING)
     // =========================
     public function spawnRandomNote():Void
     {
         var lane = Math.floor(Math.random() * playerStrums.length);
-        var startY = ClientPrefs.downScroll ? -noteSize : FlxG.height + noteSize;
-        var color = getLaneColor(lane);
-
-        var note = createNote(playerStrums[lane].x, startY, lane, color, 0);
-        addNote(note);
+        var tailLength = Math.floor(Math.random() * 3); // random tail 0-2
+        spawnNoteOnStep(lane, tailLength);
     }
 
     // =========================
-    // SPAWN NOTE ON BEAT (SYNCED TO STEP)
+    // SPAWN NOTE ON STEP / BEAT
     // =========================
     public function spawnNoteOnStep(lane:Int, tailLength:Int = 0):Void
     {
@@ -121,11 +128,10 @@ class NoteSpawner
     }
 
     // =========================
-    // MISS NOTE HANDLER
+    // REMOVE NOTE
     // =========================
-    private function missNote(note:FlxSprite):Void
+    private function removeNote(note:FlxSprite):Void
     {
-        note.hit = true;
         notes.remove(note);
         FlxG.state.remove(note);
 
@@ -138,6 +144,14 @@ class NoteSpawner
                 FlxG.state.remove(piece);
             }
         }
+    }
+
+    // =========================
+    // MISS NOTE HANDLER
+    // =========================
+    private function missNote(note:FlxSprite):Void
+    {
+        removeNote(note);
 
         // Penalty
         ClientPrefs.health -= 0.05;
@@ -169,26 +183,22 @@ class NoteSpawner
 
         if(closest != null)
         {
-            closest.hit = true;
-            notes.remove(closest);
-            FlxG.state.remove(closest);
-
-            // Remove tail pieces
-            if(closest.tail != null)
-            {
-                for(piece in closest.tail)
-                    FlxG.state.remove(piece);
-            }
+            removeNote(closest);
 
             // Score & health
             ClientPrefs.score += 100;
             ClientPrefs.health += 0.02;
             ClientPrefs.health = Math.max(0, Math.min(ClientPrefs.health, 2));
+
+            // Optional: visual feedback
+            var strum = playerStrums[lane];
+            strum.color = FlxColor.WHITE;
+            FlxTween.color(strum, strum.color, getLaneColor(lane), 0.15);
         }
     }
 
     // =========================
-    // UTILITY: LANE COLORS
+    // GET LANE COLOR
     // =========================
     private function getLaneColor(lane:Int):Int
     {
@@ -200,5 +210,16 @@ class NoteSpawner
             case 3: return FlxColor.BLUE;
             default: return FlxColor.WHITE;
         }
+    }
+
+    // =========================
+    // DEBUG: REMOVE ALL NOTES
+    // =========================
+    public function clearAllNotes():Void
+    {
+        for(note in notes)
+            removeNote(note);
+
+        notes = [];
     }
 }
