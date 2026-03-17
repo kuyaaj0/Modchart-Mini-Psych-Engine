@@ -64,6 +64,28 @@ class Settings
     public static var debugMode:Bool = false;
     public static var showHitboxes:Bool = false;
 
+// =========================
+    // 📱 MOBILE INPUT OPTIONS
+    // =========================
+    
+    // Use lane buttons / tiles for input
+    public static var mobileLaneTiles:Bool = true;
+
+    // Use D-Pad for input (default 4 arrows)
+    public static var mobileDPad:Bool = false;
+
+    // Use custom D-Pad layout
+    public static var mobileCustomDPad:Bool = false;
+
+    // Allow moving the D-Pad anywhere on the screen
+    public static var mobileCustomDPadPosition:Bool = false;
+
+    // Toggle whether clicking the note position itself triggers the note
+    public static var mobileClickOnNotePosition:Bool = true;
+
+    // Keyboard mode disables all mobile controls
+    public static var keyboardMode:Bool = false;
+
     // =========================
     // 🔄 RESET FUNCTION
     // =========================
@@ -100,5 +122,14 @@ class Settings
         // Debug
         debugMode = false;
         showHitboxes = false;
+
+        // Mobile Settings
+        mobileLaneTiles = true;
+        mobileDPad = false;
+        mobileCustomDPad = false;
+        mobileCustomDPadPosition = false;
+        mobileClickOnNotePosition = true;
+        keyboardMode = false;
+    
     }
 }
