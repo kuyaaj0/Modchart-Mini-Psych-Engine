@@ -1,36 +1,52 @@
-package Objects;
+package Game.funkin.Objects;
 
 import flixel.FlxSprite;
-import flixel.util.FlxColor;
 
 class Note extends FlxSprite
 {
-    public var lane:Int;     // 0-3
-    public var hit:Bool = false;  // whether note has been hit
-    public var judged:Bool = false; // to avoid double scoring
+    public var strumTime:Float = 0;
+    public var noteData:Int = 0;
 
-    public function new(x:Float, y:Float, lane:Int)
+    public var mustPress:Bool = false;
+
+    public var canBeHit:Bool = false;
+    public var tooLate:Bool = false;
+
+    public var wasGoodHit:Bool = false;
+    public var missed:Bool = false;
+
+    public var isSustainNote:Bool = false;
+    public var sustainLength:Float = 0;
+
+    public var hitHealth:Float = 0.02;
+    public var missHealth:Float = 0.05;
+
+    public function new(strumTime:Float, noteData:Int, mustPress:Bool)
     {
-        super(x, y);
-        this.lane = lane;
+        super();
 
-        makeGraphic(80, 80, FlxColor.BLUE);
-        centerOffsets();
+        this.strumTime = strumTime;
+        this.noteData = noteData;
+        this.mustPress = mustPress;
+
+        makeGraphic(80, 80);
     }
 
-    // Call when the note is hit
-    public function hitNote():Void
+    override function update(elapsed:Float)
     {
-        hit = true;
-        judged = true;
-        // Add visual feedback here if needed
-    }
+        super.update(elapsed);
 
-    // Call when note is missed
-    public function missNote():Void
-    {
-        hit = true;
-        judged = true;
-        // Add miss visual feedback here if needed
+        var songPos = Conductor.songPosition;
+        var safeZone = Conductor.safeZoneOffset;
+
+        // Hit window
+        canBeHit = (strumTime > songPos - safeZone &&
+                    strumTime < songPos + safeZone);
+
+        // Too late = miss
+        if (strumTime < songPos - safeZone && !wasGoodHit)
+        {
+            tooLate = true;
+        }
     }
 }
