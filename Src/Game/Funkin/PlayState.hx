@@ -1,15 +1,18 @@
-package game.funkin;
+package Game.Funkin;
 
 import flixel.FlxState;
 import flixel.FlxG;
-import flixel.text.FlxText;
 import flixel.FlxSprite;
+import flixel.text.FlxText;
 import flixel.util.FlxColor;
 import flixel.tweens.FlxTween;
 
 import Backend.Settings as ClientPrefs;
 import Backend.Input.InputManager;
 import Backend.Utils.CoolUtil;
+import Backend.Timing.Conductor;
+import Game.Funkin.Objects.Note;
+import Game.Funkin.Objects.NoteSpawner;
 
 import Mobile.MobileControls;
 import Mobile.TouchNotes;
@@ -28,12 +31,17 @@ class PlayState extends FlxState
     // =========================
     public var score:Int = 0;
     public var displayScore:Int = 0;
+    public var combo:Int = 0;
+    public var misses:Int = 0;
 
     // =========================
-    // UI
+    // UI ELEMENTS
     // =========================
     var scoreText:FlxText;
     var healthBar:FlxSprite;
+    var comboText:FlxText;
+    var missText:FlxText;
+    var debugText:FlxText;
 
     // =========================
     // STRUM LINES
@@ -42,9 +50,11 @@ class PlayState extends FlxState
     var opponentStrums:Array<FlxSprite> = [];
 
     // =========================
-    // PLAYER NOTES
+    // NOTES
     // =========================
-    var playerNotes:Array<FlxSprite> = [];
+    var playerNotes:Array<Note> = [];
+    var opponentNotes:Array<Note> = [];
+    var spawner:NoteSpawner;
 
     // =========================
     // MOBILE INPUT
@@ -61,15 +71,15 @@ class PlayState extends FlxState
     {
         super.create();
 
-        // Init input
+        // Initialize input system
         InputManager.init();
 
-        // Background
+        // Initialize background
         var bg = new FlxSprite().makeGraphic(1280, 720, FlxColor.BLACK);
         add(bg);
 
         // =========================
-        // STRUM LINES
+        // CREATE STRUMS
         // =========================
         createStrums();
 
@@ -82,8 +92,29 @@ class PlayState extends FlxState
         // =========================
         // SCORE TEXT
         // =========================
-        scoreText = new FlxText(50, 80, 0, "Score: 0", 24);
+        scoreText = new FlxText(50, 80, 300, "Score: 0", 24);
         add(scoreText);
+
+        // =========================
+        // COMBO & MISS TEXT
+        // =========================
+        comboText = new FlxText(50, 110, 300, "Combo: 0", 20);
+        add(comboText);
+
+        missText = new FlxText(50, 140, 300, "Misses: 0", 20);
+        add(missText);
+
+        // =========================
+        // DEBUG INFO
+        // =========================
+        debugText = new FlxText(800, 50, 400, "", 16);
+        add(debugText);
+
+        // =========================
+        // NOTE SPAWNER
+        // =========================
+        spawner = new NoteSpawner(playerStrums, opponentStrums);
+        spawner.init();
 
         // =========================
         // MOBILE CONTROLS
@@ -91,7 +122,6 @@ class PlayState extends FlxState
         mobileControls = new MobileControls();
         touchNotes = new TouchNotes(mobileControls);
 
-        // Add all player strums to touchNotes
         for(strum in playerStrums)
             touchNotes.addNote(strum);
 
@@ -99,6 +129,14 @@ class PlayState extends FlxState
         // APPLY SETTINGS
         // =========================
         applyScrollSettings();
+
+        // =========================
+        // START CONDUCTOR
+        // =========================
+        Conductor.init(120);
+        Conductor.onBeat = function() { onBeat(); };
+        Conductor.onStep = function() { onStep(); };
+        Conductor.start();
     }
 
     override public function update(elapsed:Float)
@@ -106,39 +144,50 @@ class PlayState extends FlxState
         super.update(elapsed);
 
         InputManager.update();
-
-        // Update mobile input
         mobileControls.update();
         touchNotes.update();
 
-        // Spawn notes
+        // =========================
+        // SPAWN NOTES (PLAYER + OPPONENT)
+        // =========================
         spawnTimer += elapsed;
-        if(spawnTimer >= 1.0) // spawn every second for test
+        if(spawnTimer >= 1.0) // test spawn every second
         {
             spawnTimer = 0;
-            spawnRandomNote();
+            spawner.spawnRandomPlayerNote();
+            spawner.spawnRandomOpponentNote();
         }
 
-        // Update notes
+        // =========================
+        // UPDATE NOTES
+        // =========================
         updateNotes(elapsed);
 
-        // Handle input
+        // =========================
+        // HANDLE INPUT
+        // =========================
         handleInput();
 
-        // Update health and score
+        // =========================
+        // UPDATE HEALTH & SCORE
+        // =========================
         updateHealth();
         updateScore();
         updateUI();
+
+        // =========================
+        // DEBUG DISPLAY
+        // =========================
+        updateDebug();
     }
 
     // =========================
-    // CREATE STRUMS
+    // CREATE STRUM LINES
     // =========================
     function createStrums():Void
     {
         var spacing:Float = 120;
 
-        // Opponent strums
         for(i in 0...4)
         {
             var opp = new FlxSprite(200 + i * spacing, 100);
@@ -147,7 +196,6 @@ class PlayState extends FlxState
             add(opp);
         }
 
-        // Player strums
         for(i in 0...4)
         {
             var yPos:Float = ClientPrefs.mobileOfficialLayout ? FlxG.height - 200 : 500;
@@ -157,12 +205,8 @@ class PlayState extends FlxState
             add(strum);
         }
 
-        // Hide opponent strums if official mobile layout
         if(ClientPrefs.mobileOfficialLayout)
-        {
-            for(opp in opponentStrums)
-                opp.visible = false;
-        }
+            for(opp in opponentStrums) opp.visible = false;
     }
 
     // =========================
@@ -179,8 +223,7 @@ class PlayState extends FlxState
 
     function hitNote(lane:Int):Void
     {
-        // Hit nearest note in lane
-        var closest:FlxSprite = null;
+        var closest:Note = null;
         var minDistance = 9999;
 
         for(note in playerNotes)
@@ -199,7 +242,7 @@ class PlayState extends FlxState
         if(closest != null)
         {
             closest.hit = true;
-            remove(closest);
+            remove(closest.sprite);
             playerNotes.remove(closest);
 
             // Visual feedback
@@ -209,26 +252,16 @@ class PlayState extends FlxState
 
             // Score & health
             score += 100;
+            combo += 1;
             health += 0.02;
             health = CoolUtil.clamp(health, 0, 2);
         }
-    }
-
-    // =========================
-    // SPAWN NOTES
-    // =========================
-    function spawnRandomNote():Void
-    {
-        var lane = Math.floor(Math.random() * 4);
-        var startY = ClientPrefs.downScroll ? -100 : FlxG.height + 100;
-
-        var note = new FlxSprite(playerStrums[lane].x, startY);
-        note.makeGraphic(80, 80, FlxColor.BLUE);
-        note.lane = lane;
-        note.hit = false;
-
-        playerNotes.push(note);
-        add(note);
+        else
+        {
+            // Penalty for pressing wrong
+            combo = 0;
+            health -= 0.02;
+        }
     }
 
     // =========================
@@ -236,33 +269,36 @@ class PlayState extends FlxState
     // =========================
     function updateNotes(elapsed:Float):Void
     {
+        // Update player notes
         for(note in playerNotes)
         {
             if(note.hit) continue;
+            note.update(elapsed, ClientPrefs.downScroll, ClientPrefs.scrollSpeed);
 
-            // Move note
-            note.y += (ClientPrefs.downScroll ? 1 : -1) * 300 * elapsed * ClientPrefs.scrollSpeed;
-
-            // Miss detection
-            var hitLine = playerStrums[note.lane].y;
-            if((ClientPrefs.downScroll && note.y > hitLine + 50) || (!ClientPrefs.downScroll && note.y < hitLine - 50))
+            if(note.isMissed(playerStrums[note.lane].y))
             {
                 missNote(note);
             }
         }
+
+        // Update opponent notes
+        for(note in opponentNotes)
+        {
+            note.update(elapsed, ClientPrefs.downScroll, ClientPrefs.scrollSpeed);
+        }
     }
 
-    function missNote(note:FlxSprite):Void
+    function missNote(note:Note):Void
     {
         note.hit = true;
-        remove(note);
+        remove(note.sprite);
         playerNotes.remove(note);
 
-        // Penalty
+        misses += 1;
+        combo = 0;
         health -= 0.05;
         health = CoolUtil.clamp(health, 0, 2);
-
-        trace("Missed note on lane: " + note.lane);
+        trace("Missed note lane: " + note.lane);
     }
 
     // =========================
@@ -298,6 +334,9 @@ class PlayState extends FlxState
         scoreText.text = ClientPrefs.scoreSeparator
             ? "Score: " + CoolUtil.formatNumber(displayScore)
             : "Score: " + displayScore;
+
+        comboText.text = "Combo: " + combo;
+        missText.text = "Misses: " + misses;
     }
 
     // =========================
@@ -316,11 +355,42 @@ class PlayState extends FlxState
                 playerStrums[i].x = FlxG.width / 2 - 200 + i * 120;
         }
 
-        // Align mobile lane buttons with strums
         if(ClientPrefs.mobileLaneTiles)
         {
             var positions = playerStrums.map(function(s) return s.x);
             mobileControls.alignLanesWithNotes(positions);
         }
+    }
+
+    // =========================
+    // CONDUCTOR CALLBACKS
+    // =========================
+    function onBeat():Void
+    {
+        // Example: flash strums on beat
+        for(strum in playerStrums)
+        {
+            strum.color = FlxColor.YELLOW;
+            FlxTween.color(strum, strum.color, FlxColor.GRAY, 0.1);
+        }
+    }
+
+    function onStep():Void
+    {
+        // Could spawn notes based on chart step
+    }
+
+    // =========================
+    // DEBUG UPDATE
+    // =========================
+    function updateDebug():Void
+    {
+        debugText.text =
+            "BPM: " + Conductor.bpm + "\n" +
+            "Beat: " + Conductor.curBeat + "\n" +
+            "Step: " + Conductor.curStep + "\n" +
+            "Player Notes: " + playerNotes.length + "\n" +
+            "Combo: " + combo + "\n" +
+            "Misses: " + misses;
     }
 }
