@@ -165,6 +165,9 @@ class NoteSpawner {
         note.destroyNote();
         playerNotes.remove(note);
 
+        PlayState.instance.combo = 0;
+        PlayState.instance.misses++;
+
         ClientPrefs.health = CoolUtil.clamp(ClientPrefs.health - 0.05, 0, 2);
     }
 }
