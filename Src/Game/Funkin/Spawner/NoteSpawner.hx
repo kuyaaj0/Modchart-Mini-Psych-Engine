@@ -6,6 +6,7 @@ import flixel.util.FlxColor;
 import Backend.Settings as ClientPrefs;
 import Backend.Timing.Conductor;
 import Game.Funkin.Objects.Note;
+import Game.Funkin.Objects.StrumNote;
 
 class NoteSpawner
 {
@@ -16,7 +17,7 @@ class NoteSpawner
     public var opponentStrums:Array<FlxSprite>;
 
     // =========================
-    // NOTE LISTS
+    // NOTES
     // =========================
     public var playerNotes:Array<Note>;
     public var opponentNotes:Array<Note>;
@@ -33,7 +34,12 @@ class NoteSpawner
     // IMAGE SPRITE OPTION
     // =========================
     public var useNoteImage:Bool = false;
-    public var noteImage:String = "note.png"; // path to sprite image if needed
+    public var noteImage:String = "note.png";
+
+    // =========================
+    // DEBUG SETTINGS
+    // =========================
+    public var debugMode:Bool = true;
 
     public function new(playerStrums:Array<FlxSprite>, opponentStrums:Array<FlxSprite>)
     {
@@ -44,24 +50,26 @@ class NoteSpawner
     }
 
     // =========================
-    // INIT (CALL AFTER PLAYSTATE CREATE)
+    // INIT (AFTER PLAYSTATE CREATE)
     // =========================
     public function init():Void
     {
         spawnTimer = 0;
+        if(debugMode) trace("NoteSpawner initialized with " + playerStrums.length + " player strums.");
     }
 
     // =========================
-    // UPDATE (CALL EVERY FRAME)
+    // UPDATE SPAWNER (EVERY FRAME)
     // =========================
-    public function update(elapsed:Float):Void
+    public function update(elapsed:Float, songPos:Float = 0):Void
     {
-        // =========================
-        // PLAYER NOTES
-        // =========================
+        // Update player notes
         for(note in playerNotes)
         {
             if(note.hit) continue;
+
+            if(note instanceof StrumNote)
+                (cast note, StrumNote).followStrum(getLanePositions(playerStrums), playerStrums[note.lane].y, songPos);
 
             note.update(elapsed, ClientPrefs.downScroll, ClientPrefs.scrollSpeed);
 
@@ -69,16 +77,17 @@ class NoteSpawner
                 missNote(note, true);
         }
 
-        // =========================
-        // OPPONENT NOTES
-        // =========================
+        // Update opponent notes
         for(note in opponentNotes)
         {
             if(note.hit) continue;
 
+            if(note instanceof StrumNote)
+                (cast note, StrumNote).followStrum(getLanePositions(opponentStrums), opponentStrums[note.lane].y, songPos);
+
             note.update(elapsed, ClientPrefs.downScroll, ClientPrefs.scrollSpeed);
 
-            // Optional: opponent notes can’t be missed
+            // Optional: opponent notes cannot be missed
         }
     }
 
@@ -88,7 +97,7 @@ class NoteSpawner
     public function spawnRandomPlayerNote():Void
     {
         var lane = Math.floor(Math.random() * playerStrums.length);
-        var tailLength = Math.floor(Math.random() * 3); // optional random tail
+        var tailLength = Math.floor(Math.random() * 3); // 0-2 tails
         spawnNote(playerStrums, playerNotes, lane, tailLength, true);
     }
 
@@ -109,29 +118,33 @@ class NoteSpawner
         var startY:Float = ClientPrefs.downScroll ? -noteSize : FlxG.height + noteSize;
         var noteColor:Int = getLaneColor(lane);
 
-        var note = new Note(strums[lane].x, startY, lane, noteSize, noteSpeed, noteColor);
-
-        // Use image sprite if enabled
-        if(useNoteImage)
-        {
-            note.loadGraphic(noteImage);
-        }
+        // Create note (can use StrumNote or Note)
+        var note:Note;
+        if(ClientPrefs.useStrumNote)
+            note = new StrumNote(0, lane, isPlayer);
         else
-        {
-            note.makeGraphic(noteSize, noteSize, noteColor);
-        }
+            note = new Note(strums[lane].x, startY, lane, noteSize, noteSpeed, noteColor);
 
-        // Tail creation for hold notes
+        // Optional image sprite
+        if(useNoteImage)
+            note.loadGraphic(noteImage);
+        else
+            note.makeGraphic(noteSize, noteSize, noteColor);
+
+        // Create tails if hold note
         if(tailLength > 0)
             note.createTail(tailLength, noteSize);
 
-        // Add to PlayState
+        // Add note to PlayState
         noteList.push(note);
         FlxG.state.add(note.sprite);
 
         if(note.tail != null)
             for(piece in note.tail)
                 FlxG.state.add(piece);
+
+        if(debugMode)
+            trace("Spawned " + (isPlayer ? "Player" : "Opponent") + " note in lane " + lane + " with tail " + tailLength);
     }
 
     // =========================
@@ -163,7 +176,8 @@ class NoteSpawner
             closest.hit = true;
             removeNote(closest, notesList);
 
-            // Optional: score/health handled by PlayState
+            if(debugMode)
+                trace("Hit note in lane " + lane);
         }
     }
 
@@ -174,6 +188,9 @@ class NoteSpawner
     {
         note.hit = true;
         removeNote(note, if(isPlayer) playerNotes else opponentNotes);
+
+        if(debugMode)
+            trace("Missed note in lane " + note.lane);
     }
 
     // =========================
@@ -187,6 +204,35 @@ class NoteSpawner
         if(note.tail != null)
             for(piece in note.tail)
                 FlxG.state.remove(piece);
+    }
+
+    // =========================
+    // SPAWN ON STEP / BEAT
+    // =========================
+    public function spawnOnStep(step:Int):Void
+    {
+        if(step % 4 == 0)
+            spawnRandomPlayerNote();
+    }
+
+    public function spawnOnBeat(beat:Int):Void
+    {
+        for(note in playerNotes)
+            note.flash(0.1);
+    }
+
+    // =========================
+    // CLEAR ALL NOTES
+    // =========================
+    public function clearAllNotes():Void
+    {
+        for(note in playerNotes) removeNote(note, playerNotes);
+        for(note in opponentNotes) removeNote(note, opponentNotes);
+
+        playerNotes = [];
+        opponentNotes = [];
+
+        if(debugMode) trace("Cleared all notes.");
     }
 
     // =========================
@@ -205,19 +251,10 @@ class NoteSpawner
     }
 
     // =========================
-    // OPTIONAL: SPAWN ON STEP/BEAT
+    // UTILITY: GET LANE X POSITIONS
     // =========================
-    public function spawnOnStep(step:Int):Void
+    private function getLanePositions(strums:Array<FlxSprite>):Array<Float>
     {
-        // Example: spawn note every 4 steps
-        if(step % 4 == 0)
-            spawnRandomPlayerNote();
-    }
-
-    public function spawnOnBeat(beat:Int):Void
-    {
-        // Example: flash notes or spawn optional notes
-        for(note in playerNotes)
-            note.flash(0.1);
+        return strums.map(function(s) return s.x);
     }
 }
