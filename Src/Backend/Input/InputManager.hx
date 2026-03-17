@@ -1,4 +1,4 @@
-package backend.Input;
+package Backend.Input;
 
 import Backend.KeyBindManager;
 
