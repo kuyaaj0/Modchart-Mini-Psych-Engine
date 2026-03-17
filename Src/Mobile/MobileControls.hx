@@ -1,178 +1,158 @@
 package Mobile;
 
 import flixel.FlxG;
-import backend.Settings;
+import flixel.FlxSprite;
+import flixel.input.touch.FlxTouch;
+import Backend.Settings;
 
 class MobileControls
 {
-    public var laneTiles:Array<VirtualButton>;       // Visual lane guides
-    public var laneTouchZones:Array<VirtualButton>; // Actual touchable zones
-    public var dpadButtons:Array<VirtualButton>;    // Optional dpad buttons
-    public var opponentZones:Array<VirtualButton>;  // Invisible opponent zones
+    public var buttons:Array<VirtualButton>;
+    public var laneButtons:Array<VirtualButton>;
+    public var dpadButtons:Array<VirtualButton>;
 
     public function new()
     {
-        laneTiles = [];
-        laneTouchZones = [];
+        buttons = [];
+        laneButtons = [];
         dpadButtons = [];
-        opponentZones = [];
         setupButtons();
     }
 
     // =========================
-    // Initialize all buttons
+    // Initialize buttons based on Settings
     // =========================
     private function setupButtons():Void
     {
-        laneTiles = [];
-        laneTouchZones = [];
+        buttons = [];
+        laneButtons = [];
         dpadButtons = [];
-        opponentZones = [];
 
-        // ===== Player Lane Tiles (Visual Only) =====
+        // ===== LANE BUTTONS =====
         if(Settings.mobileLaneTiles)
         {
-            var screenCenterX = FlxG.width / 2;
-            var baseY = FlxG.height - 150;
-            var laneSpacing = 120;
-
-            var tilePositions:Array<Float> = [
-                screenCenterX - laneSpacing,
-                screenCenterX - laneSpacing/2,
-                screenCenterX + laneSpacing/2,
-                screenCenterX + laneSpacing
-            ];
+            // Center lanes horizontally, spaced for 4 notes
+            var screenCenter:Float = FlxG.width / 2;
+            var spacing:Float = 120; // space between lane buttons
+            var startX:Float = screenCenter - 1.5 * spacing;
+            var yPos:Float = FlxG.height - 200;
 
             for(i in 0...4)
             {
-                var tile = new VirtualButton(tilePositions[i], baseY, 80, 80);
-                tile.visible = true;
-                laneTiles.push(tile);
-
-                // Player touch zones overlap tiles
-                var touchZone = new VirtualButton(tilePositions[i], baseY, 80, 80);
-                laneTouchZones.push(touchZone);
+                var btn = new VirtualButton(startX + i*spacing, yPos, 100, 100);
+                laneButtons.push(btn);
+                buttons.push(btn);
             }
         }
 
-        // ===== D-Pad Buttons =====
+        // ===== D-PAD BUTTONS =====
         if(Settings.mobileDPad || Settings.mobileCustomDPad)
         {
-            var dpadPos:Array<{x:Float, y:Float}> = [
-                {x:100, y:600}, // left
-                {x:200, y:600}, // down
-                {x:300, y:500}, // up
-                {x:400, y:600}  // right
+            // Default D-Pad positions (can be overridden by custom)
+            var positions:Array<{x:Float, y:Float}> = [
+                {x:100, y:FlxG.height - 200}, // left
+                {x:200, y:FlxG.height - 100}, // down
+                {x:200, y:FlxG.height - 300}, // up
+                {x:300, y:FlxG.height - 200}  // right
             ];
 
             for(i in 0...4)
             {
-                var btn = new VirtualButton(dpadPos[i].x, dpadPos[i].y, 80, 80);
+                var pos = positions[i];
+                var btn = new VirtualButton(pos.x, pos.y, 80, 80);
                 dpadButtons.push(btn);
-            }
-        }
-
-        // ===== Opponent Invisible Zones =====
-        if(Settings.mobileLaneTiles)
-        {
-            var oppX = 50;
-            var oppY = 50;
-            var oppSpacing = 60;
-            for(i in 0...4)
-            {
-                var zone = new VirtualButton(oppX + i*oppSpacing, oppY, 80, 80);
-                zone.visible = false; // invisible for opponent
-                opponentZones.push(zone);
+                buttons.push(btn);
             }
         }
     }
 
     // =========================
-    // Update all buttons each frame
+    // Update every frame
     // =========================
     public function update():Void
     {
-        // Disable mobile buttons if using keyboard
+        // Hide buttons if keyboard mode or PC keys are pressed
         if(Settings.keyboardMode || FlxG.keys.any())
         {
-            hideAll();
-            return;
+            for(b in buttons)
+                b.visible = false;
         }
-
-        for(tile in laneTiles)
-            tile.update();
-
-        for(zone in laneTouchZones)
-            zone.update();
-
-        for(btn in dpadButtons)
-            btn.update();
-
-        for(zone in opponentZones)
-            zone.update();
+        else
+        {
+            for(b in buttons)
+            {
+                b.visible = true;
+                b.update();
+            }
+        }
     }
 
     // =========================
-    // Draw all buttons
+    // Draw all visible buttons
     // =========================
     public function draw():Void
     {
-        for(tile in laneTiles)
-            tile.draw();
-
-        for(zone in laneTouchZones)
-            zone.draw();
-
-        for(btn in dpadButtons)
-            btn.draw();
+        for(b in buttons)
+            if(b.visible)
+                b.draw();
     }
 
     // =========================
-    // Utility Functions
+    // Lane button pressed
     // =========================
-    public function hideAll():Void
-    {
-        for(tile in laneTiles) tile.visible = false;
-        for(zone in laneTouchZones) zone.visible = false;
-        for(btn in dpadButtons) btn.visible = false;
-    }
-
-    public function showAll():Void
-    {
-        for(tile in laneTiles) tile.visible = true;
-        for(zone in laneTouchZones) zone.visible = true;
-        for(btn in dpadButtons) btn.visible = true;
-    }
-
-    public function moveDPad(newPos:Array<{x:Float, y:Float}>):Void
-    {
-        if(!Settings.mobileCustomDPadPosition) return;
-        for(i in 0...dpadButtons.length)
-        {
-            if(i >= newPos.length) break;
-            dpadButtons[i].moveTo(newPos[i].x, newPos[i].y);
-        }
-    }
-
     public function isLanePressed(lane:Int):Bool
     {
-        if(lane < 0 || lane >= laneTouchZones.length) return false;
-        return laneTouchZones[lane].isPressed;
+        if(lane < 0 || lane >= laneButtons.length) return false;
+        return laneButtons[lane].isPressed;
     }
 
+    // =========================
+    // D-Pad button pressed (0-left,1-down,2-up,3-right)
+    // =========================
     public function isDPadPressed(index:Int):Bool
     {
         if(index < 0 || index >= dpadButtons.length) return false;
         return dpadButtons[index].isPressed;
     }
 
+    // =========================
+    // Move D-Pad for custom positions
+    // =========================
+    public function moveDPad(newPositions:Array<{x:Float, y:Float}>):Void
+    {
+        if(!Settings.mobileCustomDPadPosition) return;
+        for(i in 0...dpadButtons.length)
+        {
+            if(i >= newPositions.length) break;
+            dpadButtons[i].moveTo(newPositions[i].x, newPositions[i].y);
+        }
+    }
+
+    // =========================
+    // Check if a note at screen coordinates is clicked
+    // =========================
     public function checkNoteClick(noteX:Float, noteY:Float, noteWidth:Float, noteHeight:Float):Bool
     {
-        for(zone in laneTouchZones)
+        if(!Settings.mobileClickOnNotePosition) return false;
+
+        for(btn in buttons)
         {
-            if(zone.checkNoteClick(noteX, noteY, noteWidth, noteHeight))
+            if(btn.checkNoteClick(noteX, noteY, noteWidth, noteHeight))
                 return true;
         }
         return false;
+    }
+
+    // =========================
+    // Optional: align lane buttons with note positions
+    // =========================
+    public function alignLanesWithNotes(notePositions:Array<Float>):Void
+    {
+        if(!Settings.mobileLaneTiles) return;
+        for(i in 0...laneButtons.length)
+        {
+            if(i >= notePositions.length) break;
+            laneButtons[i].moveTo(notePositions[i], laneButtons[i].y);
+        }
     }
 }
