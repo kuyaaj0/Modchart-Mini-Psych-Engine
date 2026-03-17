@@ -42,10 +42,20 @@ class PlayState extends FlxState
     var opponentStrums:Array<FlxSprite> = [];
 
     // =========================
+    // PLAYER NOTES
+    // =========================
+    var playerNotes:Array<FlxSprite> = [];
+
+    // =========================
     // MOBILE INPUT
     // =========================
     var mobileControls:MobileControls;
     var touchNotes:TouchNotes;
+
+    // =========================
+    // SPAWN TIMER
+    // =========================
+    var spawnTimer:Float = 0;
 
     override public function create()
     {
@@ -76,12 +86,12 @@ class PlayState extends FlxState
         add(scoreText);
 
         // =========================
-        // MOBILE CONTROLS SETUP
+        // MOBILE CONTROLS
         // =========================
         mobileControls = new MobileControls();
         touchNotes = new TouchNotes(mobileControls);
 
-        // Add all player notes to touchNotes for detection
+        // Add all player strums to touchNotes
         for(strum in playerStrums)
             touchNotes.addNote(strum);
 
@@ -97,11 +107,25 @@ class PlayState extends FlxState
 
         InputManager.update();
 
-        // Update mobile controls
+        // Update mobile input
         mobileControls.update();
         touchNotes.update();
 
+        // Spawn notes
+        spawnTimer += elapsed;
+        if(spawnTimer >= 1.0) // spawn every second for test
+        {
+            spawnTimer = 0;
+            spawnRandomNote();
+        }
+
+        // Update notes
+        updateNotes(elapsed);
+
+        // Handle input
         handleInput();
+
+        // Update health and score
         updateHealth();
         updateScore();
         updateUI();
@@ -114,7 +138,7 @@ class PlayState extends FlxState
     {
         var spacing:Float = 120;
 
-        // Opponent strums (optional)
+        // Opponent strums
         for(i in 0...4)
         {
             var opp = new FlxSprite(200 + i * spacing, 100);
@@ -126,17 +150,14 @@ class PlayState extends FlxState
         // Player strums
         for(i in 0...4)
         {
-            var yPos:Float = 500;
-            if(ClientPrefs.mobileOfficialLayout)
-                yPos = FlxG.height - 200;
-
+            var yPos:Float = ClientPrefs.mobileOfficialLayout ? FlxG.height - 200 : 500;
             var strum = new FlxSprite(200 + i * spacing, yPos);
             strum.makeGraphic(80, 80, FlxColor.GRAY);
             playerStrums.push(strum);
             add(strum);
         }
 
-        // Hide opponent if official mobile layout
+        // Hide opponent strums if official mobile layout
         if(ClientPrefs.mobileOfficialLayout)
         {
             for(opp in opponentStrums)
@@ -145,7 +166,7 @@ class PlayState extends FlxState
     }
 
     // =========================
-    // INPUT HANDLING (KEYBOARD + MOBILE)
+    // INPUT HANDLING
     // =========================
     function handleInput():Void
     {
@@ -158,18 +179,90 @@ class PlayState extends FlxState
 
     function hitNote(lane:Int):Void
     {
-        var strum = playerStrums[lane];
+        // Hit nearest note in lane
+        var closest:FlxSprite = null;
+        var minDistance = 9999;
 
-        // Visual feedback
-        strum.color = FlxColor.WHITE;
-        FlxTween.color(strum, strum.color, FlxColor.GRAY, 0.15); // fade back
+        for(note in playerNotes)
+        {
+            if(note.lane == lane && !note.hit)
+            {
+                var dist = Math.abs(note.y - playerStrums[lane].y);
+                if(dist < minDistance)
+                {
+                    closest = note;
+                    minDistance = dist;
+                }
+            }
+        }
 
-        // Increase score
-        score += 100;
+        if(closest != null)
+        {
+            closest.hit = true;
+            remove(closest);
+            playerNotes.remove(closest);
 
-        // Increase health slightly
-        health += 0.02;
+            // Visual feedback
+            var strum = playerStrums[lane];
+            strum.color = FlxColor.WHITE;
+            FlxTween.color(strum, strum.color, FlxColor.GRAY, 0.15);
+
+            // Score & health
+            score += 100;
+            health += 0.02;
+            health = CoolUtil.clamp(health, 0, 2);
+        }
+    }
+
+    // =========================
+    // SPAWN NOTES
+    // =========================
+    function spawnRandomNote():Void
+    {
+        var lane = Math.floor(Math.random() * 4);
+        var startY = ClientPrefs.downScroll ? -100 : FlxG.height + 100;
+
+        var note = new FlxSprite(playerStrums[lane].x, startY);
+        note.makeGraphic(80, 80, FlxColor.BLUE);
+        note.lane = lane;
+        note.hit = false;
+
+        playerNotes.push(note);
+        add(note);
+    }
+
+    // =========================
+    // UPDATE NOTES
+    // =========================
+    function updateNotes(elapsed:Float):Void
+    {
+        for(note in playerNotes)
+        {
+            if(note.hit) continue;
+
+            // Move note
+            note.y += (ClientPrefs.downScroll ? 1 : -1) * 300 * elapsed * ClientPrefs.scrollSpeed;
+
+            // Miss detection
+            var hitLine = playerStrums[note.lane].y;
+            if((ClientPrefs.downScroll && note.y > hitLine + 50) || (!ClientPrefs.downScroll && note.y < hitLine - 50))
+            {
+                missNote(note);
+            }
+        }
+    }
+
+    function missNote(note:FlxSprite):Void
+    {
+        note.hit = true;
+        remove(note);
+        playerNotes.remove(note);
+
+        // Penalty
+        health -= 0.05;
         health = CoolUtil.clamp(health, 0, 2);
+
+        trace("Missed note on lane: " + note.lane);
     }
 
     // =========================
@@ -212,24 +305,18 @@ class PlayState extends FlxState
     // =========================
     function applyScrollSettings():Void
     {
-        if(ClientPrefs.downScroll)
+        for(i in 0...playerStrums.length)
         {
-            for(strum in playerStrums)
-                strum.y = 100;
-        }
-        else
-        {
-            for(strum in playerStrums)
-                strum.y = ClientPrefs.mobileOfficialLayout ? FlxG.height - 200 : 500;
+            var yPos = ClientPrefs.downScroll
+                ? 100
+                : (ClientPrefs.mobileOfficialLayout ? FlxG.height - 200 : 500);
+            playerStrums[i].y = yPos;
+
+            if(ClientPrefs.middleScroll)
+                playerStrums[i].x = FlxG.width / 2 - 200 + i * 120;
         }
 
-        if(ClientPrefs.middleScroll)
-        {
-            for(i in 0...playerStrums.length)
-                playerStrums[i].x = FlxG.width / 2 - 200 + (i * 120);
-        }
-
-        // Align mobile lane buttons with player notes
+        // Align mobile lane buttons with strums
         if(ClientPrefs.mobileLaneTiles)
         {
             var positions = playerStrums.map(function(s) return s.x);
