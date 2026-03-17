@@ -6,6 +6,8 @@ import Backend.Settings as ClientPrefs;
 import Backend.Utils.CoolUtil;
 import Backend.Timing.Conductor;
 
+import Game.Funkin.Objects.NoteSplash;
+
 class NoteSpawner {
     public var playerNotes:Array<StrumNote> = [];
     public var opponentNotes:Array<StrumNote> = [];
@@ -65,11 +67,19 @@ class NoteSpawner {
         }
     }
 
-    function updateOpponent(elapsed:Float):Void {
-        for(note in opponentNotes) {
-            note.updateNote(elapsed);
+    function updateOpponent(elapsed:Float):Void
+{
+    for(note in opponentNotes)
+    {
+        note.updateNote(elapsed);
+
+        if(note.canBeHit(opponentStrums[note.noteData].y))
+        {
+            note.destroyNote();
+            opponentNotes.remove(note);
         }
     }
+}
 
     // =========================
     // INPUT
@@ -108,6 +118,8 @@ class NoteSpawner {
     function handleHit(note:StrumNote, isHolding:Bool):Void
 {
     var rating = getRating(note, playerStrums[note.noteData].y);
+    var splash = new NoteSplash(note.x, note.y);
+    FlxG.state.add(splash);
 
     switch(rating)
     {
