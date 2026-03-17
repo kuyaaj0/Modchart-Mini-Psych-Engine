@@ -5,6 +5,7 @@ import flixel.FlxG;
 import flixel.text.FlxText;
 import flixel.FlxSprite;
 import flixel.util.FlxColor;
+import flixel.tweens.FlxTween;
 
 import Backend.Settings as ClientPrefs;
 import Backend.Input.InputManager;
@@ -35,9 +36,10 @@ class PlayState extends FlxState
     var healthBar:FlxSprite;
 
     // =========================
-    // STRUM TEST
+    // STRUM LINES
     // =========================
     var playerStrums:Array<FlxSprite> = [];
+    var opponentStrums:Array<FlxSprite> = [];
 
     // =========================
     // MOBILE INPUT
@@ -57,15 +59,9 @@ class PlayState extends FlxState
         add(bg);
 
         // =========================
-        // STRUM LINE
+        // STRUM LINES
         // =========================
-        for (i in 0...4)
-        {
-            var strum = new FlxSprite(200 + (i * 120), 500);
-            strum.makeGraphic(80, 80, FlxColor.GRAY);
-            playerStrums.push(strum);
-            add(strum);
-        }
+        createStrums();
 
         // =========================
         // HEALTH BAR
@@ -84,6 +80,10 @@ class PlayState extends FlxState
         // =========================
         mobileControls = new MobileControls();
         touchNotes = new TouchNotes(mobileControls);
+
+        // Add all player notes to touchNotes for detection
+        for(strum in playerStrums)
+            touchNotes.addNote(strum);
 
         // =========================
         // APPLY SETTINGS
@@ -108,28 +108,61 @@ class PlayState extends FlxState
     }
 
     // =========================
-    // INPUT HANDLING (KEYBOARD + MOBILE)
+    // CREATE STRUMS
     // =========================
-    function handleInput()
+    function createStrums():Void
     {
-        // Keyboard input
-        if (InputManager.leftPress() || mobileControls.isLanePressed(0))
-            hitNote(0);
+        var spacing:Float = 120;
 
-        if (InputManager.downPress() || mobileControls.isLanePressed(1))
-            hitNote(1);
+        // Opponent strums (optional)
+        for(i in 0...4)
+        {
+            var opp = new FlxSprite(200 + i * spacing, 100);
+            opp.makeGraphic(80, 80, FlxColor.RED);
+            opponentStrums.push(opp);
+            add(opp);
+        }
 
-        if (InputManager.upPress() || mobileControls.isLanePressed(2))
-            hitNote(2);
+        // Player strums
+        for(i in 0...4)
+        {
+            var yPos:Float = 500;
+            if(ClientPrefs.mobileOfficialLayout)
+                yPos = FlxG.height - 200;
 
-        if (InputManager.rightPress() || mobileControls.isLanePressed(3))
-            hitNote(3);
+            var strum = new FlxSprite(200 + i * spacing, yPos);
+            strum.makeGraphic(80, 80, FlxColor.GRAY);
+            playerStrums.push(strum);
+            add(strum);
+        }
+
+        // Hide opponent if official mobile layout
+        if(ClientPrefs.mobileOfficialLayout)
+        {
+            for(opp in opponentStrums)
+                opp.visible = false;
+        }
     }
 
-    function hitNote(lane:Int)
+    // =========================
+    // INPUT HANDLING (KEYBOARD + MOBILE)
+    // =========================
+    function handleInput():Void
     {
+        for(lane in 0...4)
+        {
+            if(InputManager.lanePress(lane) || mobileControls.isLanePressed(lane))
+                hitNote(lane);
+        }
+    }
+
+    function hitNote(lane:Int):Void
+    {
+        var strum = playerStrums[lane];
+
         // Visual feedback
-        playerStrums[lane].color = FlxColor.WHITE;
+        strum.color = FlxColor.WHITE;
+        FlxTween.color(strum, strum.color, FlxColor.GRAY, 0.15); // fade back
 
         // Increase score
         score += 100;
@@ -142,80 +175,65 @@ class PlayState extends FlxState
     // =========================
     // HEALTH UPDATE
     // =========================
-    function updateHealth()
+    function updateHealth():Void
     {
-        if (ClientPrefs.smoothHealth)
-        {
-            smoothHealth = CoolUtil.smoothLerp(
-                smoothHealth,
-                health,
-                ClientPrefs.healthLerp
-            );
-        }
-        else
-        {
-            smoothHealth = health;
-        }
+        smoothHealth = ClientPrefs.smoothHealth
+            ? CoolUtil.smoothLerp(smoothHealth, health, ClientPrefs.healthLerp)
+            : health;
 
-        // Death check
-        if (health <= 0)
+        if(health <= 0)
             trace("Player Died");
     }
 
     // =========================
     // SCORE UPDATE
     // =========================
-    function updateScore()
+    function updateScore():Void
     {
-        if (ClientPrefs.smoothScore)
-        {
-            displayScore = Std.int(CoolUtil.smoothLerp(
-                displayScore,
-                score,
-                ClientPrefs.scoreLerp
-            ));
-        }
-        else
-        {
-            displayScore = score;
-        }
+        displayScore = ClientPrefs.smoothScore
+            ? Std.int(CoolUtil.smoothLerp(displayScore, score, ClientPrefs.scoreLerp))
+            : score;
     }
 
     // =========================
     // UI UPDATE
     // =========================
-    function updateUI()
+    function updateUI():Void
     {
         healthBar.scale.x = smoothHealth;
 
-        if (ClientPrefs.scoreSeparator)
-            scoreText.text = "Score: " + CoolUtil.formatNumber(displayScore);
-        else
-            scoreText.text = "Score: " + displayScore;
+        scoreText.text = ClientPrefs.scoreSeparator
+            ? "Score: " + CoolUtil.formatNumber(displayScore)
+            : "Score: " + displayScore;
     }
 
     // =========================
     // SCROLL SETTINGS
     // =========================
-    function applyScrollSettings()
+    function applyScrollSettings():Void
     {
-        if (ClientPrefs.downScroll)
+        if(ClientPrefs.downScroll)
         {
-            for (strum in playerStrums)
+            for(strum in playerStrums)
                 strum.y = 100;
         }
         else
         {
-            for (strum in playerStrums)
-                strum.y = 500;
+            for(strum in playerStrums)
+                strum.y = ClientPrefs.mobileOfficialLayout ? FlxG.height - 200 : 500;
         }
 
-        if (ClientPrefs.middleScroll)
+        if(ClientPrefs.middleScroll)
         {
-            for (i in 0...playerStrums.length)
-            {
+            for(i in 0...playerStrums.length)
                 playerStrums[i].x = FlxG.width / 2 - 200 + (i * 120);
-            }
+        }
+
+        // Align mobile lane buttons with player notes
+        if(ClientPrefs.mobileLaneTiles)
+        {
+            var positions = playerStrums.map(function(s) return s.x);
+            mobileControls.alignLanesWithNotes(positions);
         }
     }
 }
