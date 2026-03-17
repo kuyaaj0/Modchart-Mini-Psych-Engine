@@ -11,6 +11,7 @@ import Backend.Settings as ClientPrefs;
 import Backend.Input.InputManager;
 import Backend.Utils.CoolUtil;
 import Backend.Timing.Conductor;
+import Backend.Chart.ChartLoader;
 
 import Game.Funkin.Spawner.NoteSpawner;
 
@@ -81,6 +82,11 @@ class PlayState extends FlxState
         // UI
         createUI();
 
+        //chart to load
+        var chart = ChartLoader.load("assets/data/test.json");
+        Conductor.init(chart.bpm);
+        spawner.loadChart(chart);
+
         // NOTE SPAWNER
         spawner = new NoteSpawner(playerStrums, opponentStrums);
 
@@ -109,12 +115,12 @@ class PlayState extends FlxState
         touchNotes.update();
 
         // TEST SPAWN (replace later with chart system)
-        spawnTimer += elapsed;
+       /* spawnTimer += elapsed;
         if(spawnTimer >= 1.0)
         {
             spawnTimer = 0;
             spawner.spawnPlayer(Std.random(4), Conductor.songPosition);
-        }
+        }*/
 
         // UPDATE NOTES
         spawner.update(elapsed);
