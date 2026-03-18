@@ -5,132 +5,74 @@ import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.text.FlxText;
 import flixel.util.FlxColor;
+import flixel.group.FlxGroup;
 
-import Editor.ChartEditorState;
+import Editor.EditorButton;
 import Game.Funkin.PlayState;
+import Editor.ChartEditorState;
 
 class PauseSubState extends FlxSubState
 {
-    var options:Array<String> = [
-        "Resume",
-        "Restart",
-        "Chart Editor",
-        "Exit"
-    ];
+    var bg:FlxSprite;
+    var title:FlxText;
 
-    var buttons:Array<FlxText> = [];
-    var curSelected:Int = 0;
+    var buttons:FlxGroup;
 
     override public function create()
     {
         super.create();
 
         // =========================
-        // BACKGROUND
+        // DARK BACKGROUND
         // =========================
-        var bg = new FlxSprite().makeGraphic(1280, 720, FlxColor.BLACK);
-        bg.alpha = 0.7;
+        bg = new FlxSprite().makeGraphic(1280, 720, FlxColor.BLACK);
+        bg.alpha = 0.75;
         add(bg);
 
         // =========================
         // TITLE
         // =========================
-        var title = new FlxText(0, 120, FlxG.width, "PAUSED", 48);
+        title = new FlxText(0, 120, FlxG.width, "PAUSED", 48);
         title.alignment = "center";
         add(title);
 
         // =========================
-        // BUTTONS
+        // BUTTON GROUP
         // =========================
-        for(i in 0...options.length)
+        buttons = new FlxGroup();
+        add(buttons);
+
+        var centerX = FlxG.width / 2 - 100;
+        var startY = 250;
+        var spacing = 70;
+
+        // RESUME
+        buttons.add(new EditorButton(centerX, startY, "RESUME", function()
         {
-            var txt = new FlxText(0, 250 + i * 70, FlxG.width, options[i], 32);
-            txt.alignment = "center";
-            buttons.push(txt);
-            add(txt);
-        }
-
-        updateSelection();
-    }
-
-    override public function update(elapsed:Float)
-    {
-        super.update(elapsed);
-
-        // =========================
-        // KEYBOARD NAVIGATION
-        // =========================
-        if(FlxG.keys.justPressed.UP)
-        {
-            curSelected--;
-            if(curSelected < 0) curSelected = options.length - 1;
-            updateSelection();
-        }
-
-        if(FlxG.keys.justPressed.DOWN)
-        {
-            curSelected++;
-            if(curSelected >= options.length) curSelected = 0;
-            updateSelection();
-        }
-
-        if(FlxG.keys.justPressed.ENTER)
-            selectOption();
-
-        // ESC = Resume
-        if(FlxG.keys.justPressed.ESCAPE)
             resumeGame();
+        }));
 
-        // =========================
-        // MOUSE / TOUCH INPUT
-        // =========================
-        for(i in 0...buttons.length)
+        // RESTART
+        buttons.add(new EditorButton(centerX, startY + spacing, "RESTART", function()
         {
-            var btn = buttons[i];
+            FlxG.resetState();
+        }));
 
-            if(FlxG.mouse.overlaps(btn) && FlxG.mouse.justPressed)
-            {
-                curSelected = i;
-                updateSelection();
-                selectOption();
-            }
+        // CHART EDITOR
+        buttons.add(new EditorButton(centerX, startY + spacing * 2, "CHART EDITOR", function()
+        {
+            FlxG.switchState(new ChartEditorState());
+        }));
 
-            for(t in FlxG.touches.list)
-            {
-                if(t.justPressed && btn.overlapsPoint(t.getWorldPosition()))
-                {
-                    curSelected = i;
-                    updateSelection();
-                    selectOption();
-                }
-            }
-        }
+        // EXIT
+        buttons.add(new EditorButton(centerX, startY + spacing * 3, "EXIT", function()
+        {
+            FlxG.switchState(new PlayState()); // or MainMenuState later
+        }));
     }
 
     // =========================
-    // OPTION HANDLER
-    // =========================
-    function selectOption():Void
-    {
-        switch(options[curSelected])
-        {
-            case "Resume":
-                resumeGame();
-
-            case "Restart":
-                FlxG.resetState();
-
-            case "Chart Editor":
-                FlxG.switchState(new ChartEditorState());
-
-            case "Exit":
-                // You can change this to MainMenuState later
-                FlxG.switchState(new PlayState());
-        }
-    }
-
-    // =========================
-    // RESUME
+    // RESUME FUNCTION
     // =========================
     function resumeGame():Void
     {
@@ -138,21 +80,23 @@ class PauseSubState extends FlxSubState
     }
 
     // =========================
-    // VISUAL SELECTION
+    // UPDATE
     // =========================
-    function updateSelection():Void
+    override public function update(elapsed:Float)
     {
-        for(i in 0...buttons.length)
+        super.update(elapsed);
+
+        // Keyboard resume
+        if(FlxG.keys.justPressed.ESCAPE)
+            resumeGame();
+
+        // Mobile quick tap resume (optional)
+        for(t in FlxG.touches.list)
         {
-            if(i == curSelected)
+            if(t.justPressed && t.y < 100) // top tap = quick resume
             {
-                buttons[i].color = FlxColor.YELLOW;
-                buttons[i].scale.set(1.2, 1.2);
-            }
-            else
-            {
-                buttons[i].color = FlxColor.WHITE;
-                buttons[i].scale.set(1, 1);
+                resumeGame();
+                break;
             }
         }
     }
