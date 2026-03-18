@@ -9,6 +9,7 @@ import flixel.sound.FlxSound;
 import openfl.media.Sound;
 import openfl.utils.ByteArray;
 
+import sys.FileSystem;
 import sys.io.File;
 import haxe.Json;
 
