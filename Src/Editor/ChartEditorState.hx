@@ -1,17 +1,16 @@
 package Editor;
 
-import flixel.FlxState;
-import flixel.FlxG;
-import flixel.FlxSprite;
-import flixel.group.FlxGroup;
-import flixel.util.FlxColor;
+import flixel.*;
+import flixel.group.*;
+import flixel.util.*;
+import flixel.text.FlxText;
 import flixel.sound.FlxSound;
 
 import openfl.media.Sound;
 import openfl.utils.ByteArray;
 
-import haxe.Json;
 import sys.io.File;
+import haxe.Json;
 
 class ChartEditorState extends FlxState
 {
@@ -21,7 +20,7 @@ class ChartEditorState extends FlxState
     var waveform:FlxSprite;
     var grid:FlxGroup;
     var notes:FlxGroup;
-    var lanes:FlxGroup;
+    var sustains:FlxGroup;
 
     var bpm:Float = 120;
     var beatLength:Float;
@@ -29,13 +28,14 @@ class ChartEditorState extends FlxState
     var strumLineY:Float = 500;
     var scrollSpeed:Float = 120;
 
+    var lanes:Int = 4;
+    var laneWidth:Float;
+
     var snap:Int = 4;
 
-    var laneWidth:Int = 120;
-    var laneCount:Int = 4;
-
-    var currentHold:FlxSprite;
-    var holdStartTime:Float;
+    var placingHold:Bool = false;
+    var holdStartTime:Float = 0;
+    var holdLane:Int = 0;
 
     override public function create()
     {
@@ -44,27 +44,27 @@ class ChartEditorState extends FlxState
         FlxG.bgColor = FlxColor.BLACK;
 
         beatLength = 60 / bpm;
+        laneWidth = FlxG.width / lanes;
 
+        // Load music
         soundData = Sound.fromFile("assets/music/test.ogg");
         song = FlxG.sound.load("assets/music/test.ogg");
         song.play();
 
         grid = new FlxGroup();
-        add(grid);
-
         notes = new FlxGroup();
-        add(notes);
+        sustains = new FlxGroup();
 
-        lanes = new FlxGroup();
-        add(lanes);
+        add(grid);
+        add(sustains);
+        add(notes);
 
         waveform = new FlxSprite(0, 0);
         waveform.makeGraphic(FlxG.width, 200, FlxColor.TRANSPARENT);
         add(waveform);
 
         generateWaveform();
-        drawLanes();
-        drawBeatGrid();
+        drawGrid();
     }
 
     // =========================
@@ -89,9 +89,9 @@ class ChartEditorState extends FlxState
             bytes.position = index;
             var sample:Float = bytes.readFloat();
 
-            var height = Std.int(sample * 100);
+            var h = Std.int(sample * 100);
 
-            for(y in -height...height)
+            for(y in -h...h)
             {
                 var drawY = 100 + y;
                 if(drawY >= 0 && drawY < 200)
@@ -103,29 +103,21 @@ class ChartEditorState extends FlxState
     }
 
     // =========================
-    // 🎹 LANES
+    // 🟩 GRID + LANES
     // =========================
-    function drawLanes()
-    {
-        lanes.clear();
-
-        for(i in 0...laneCount)
-        {
-            var lane = new FlxSprite(i * laneWidth, 0);
-            lane.makeGraphic(laneWidth - 2, FlxG.height, FlxColor.fromRGB(30,30,30));
-
-            lane.ID = i;
-            lanes.add(lane);
-        }
-    }
-
-    // =========================
-    // 🟩 GRID
-    // =========================
-    function drawBeatGrid()
+    function drawGrid()
     {
         grid.clear();
 
+        // Vertical lanes
+        for(i in 0...lanes)
+        {
+            var x = i * laneWidth;
+            var lane = new FlxSprite(x, 0).makeGraphic(2, FlxG.height, FlxColor.DARK_GRAY);
+            grid.add(lane);
+        }
+
+        // Beat lines
         var time:Float = 0;
         var id:Int = 0;
 
@@ -139,6 +131,7 @@ class ChartEditorState extends FlxState
                 line.color = FlxColor.WHITE;
 
             line.ID = id;
+
             grid.add(line);
 
             time += beatLength;
@@ -152,65 +145,57 @@ class ChartEditorState extends FlxState
     function placeNote(x:Float, y:Float)
     {
         var lane = Std.int(x / laneWidth);
-        if(lane < 0 || lane >= laneCount) return;
-
-        var songTime = (strumLineY - y) / scrollSpeed;
+        var time = (strumLineY - y) / scrollSpeed;
 
         var snapStep = beatLength / snap;
-        var snapped = Math.round(songTime / snapStep) * snapStep;
+        var snapped = Math.round(time / snapStep) * snapStep;
 
-        var note = new FlxSprite(lane * laneWidth + 20, strumLineY - snapped * scrollSpeed);
-        note.makeGraphic(laneWidth - 40, 40, FlxColor.RED);
+        var note = new FlxSprite(lane * laneWidth + laneWidth/2 - 20, strumLineY - snapped * scrollSpeed);
+        note.makeGraphic(40, 40, FlxColor.RED);
 
         note.ID = Std.int(snapped * 1000);
-        note.alpha = lane;
+        note.alpha = lane; // store lane
 
         notes.add(note);
     }
 
     // =========================
-    // ⏱️ HOLD NOTES
+    // 🟪 HOLD NOTES
     // =========================
     function startHold(x:Float, y:Float)
     {
-        var lane = Std.int(x / laneWidth);
-        if(lane < 0 || lane >= laneCount) return;
-
-        var songTime = (strumLineY - y) / scrollSpeed;
-
-        currentHold = new FlxSprite(lane * laneWidth + 20, y);
-        currentHold.makeGraphic(laneWidth - 40, 10, FlxColor.BLUE);
-
-        holdStartTime = songTime;
-        currentHold.alpha = lane;
-
-        add(currentHold);
+        placingHold = true;
+        holdLane = Std.int(x / laneWidth);
+        holdStartTime = (strumLineY - y) / scrollSpeed;
     }
 
-    function updateHold(y:Float)
+    function endHold(y:Float)
     {
-        if(currentHold == null) return;
+        if(!placingHold) return;
 
-        currentHold.scale.y = Math.abs((currentHold.y - y) / 10);
-    }
-
-    function finishHold(x:Float, y:Float)
-    {
-        if(currentHold == null) return;
+        placingHold = false;
 
         var endTime = (strumLineY - y) / scrollSpeed;
 
-        var length = endTime - holdStartTime;
+        var startSnap = Math.round(holdStartTime / (beatLength / snap)) * (beatLength / snap);
+        var endSnap = Math.round(endTime / (beatLength / snap)) * (beatLength / snap);
 
-        currentHold.ID = Std.int(holdStartTime * 1000);
-        currentHold.scale.y = length * scrollSpeed / 10;
+        var height = (endSnap - startSnap) * scrollSpeed;
 
-        notes.add(currentHold);
-        currentHold = null;
+        var sustain = new FlxSprite(holdLane * laneWidth + laneWidth/2 - 10,
+            strumLineY - startSnap * scrollSpeed);
+
+        sustain.makeGraphic(20, Std.int(height), FlxColor.GREEN);
+
+        sustain.ID = Std.int(startSnap * 1000);
+        sustain.alpha = holdLane;
+        sustain.angle = endSnap * 1000; // store end
+
+        sustains.add(sustain);
     }
 
     // =========================
-    // 💾 SAVE
+    // 💾 SAVE CHART
     // =========================
     function saveChart()
     {
@@ -219,48 +204,66 @@ class ChartEditorState extends FlxState
         for(n in notes.members)
         {
             if(n != null)
-            {
-                data.push({
-                    time: n.ID,
-                    lane: Std.int(n.alpha),
-                    sustain: Std.int(n.scale.y * 10)
-                });
-            }
+                data.push({time:n.ID, lane:n.alpha, type:"tap"});
         }
 
-        var json = Json.stringify(data);
+        for(s in sustains.members)
+        {
+            if(s != null)
+                data.push({
+                    time:s.ID,
+                    lane:s.alpha,
+                    type:"hold",
+                    end:s.angle
+                });
+        }
+
+        var json = Json.stringify(data, "\t");
         File.saveContent("chart.json", json);
-        trace("Chart Saved!");
     }
 
     // =========================
-    // 📂 LOAD
+    // 📂 LOAD CHART
     // =========================
     function loadChart()
     {
         if(!FileSystem.exists("chart.json")) return;
 
-        var json = File.getContent("chart.json");
-        var data:Array<Dynamic> = Json.parse(json);
-
         notes.clear();
+        sustains.clear();
 
-        for(noteData in data)
+        var raw = File.getContent("chart.json");
+        var data:Array<Dynamic> = Json.parse(raw);
+
+        for(d in data)
         {
-            var time = noteData.time / 1000;
-            var lane = noteData.lane;
+            if(d.type == "tap")
+            {
+                var n = new FlxSprite(d.lane * laneWidth + laneWidth/2 - 20,
+                    strumLineY - (d.time/1000) * scrollSpeed);
 
-            var note = new FlxSprite(lane * laneWidth + 20, strumLineY - time * scrollSpeed);
-            note.makeGraphic(laneWidth - 40, 40, FlxColor.RED);
+                n.makeGraphic(40, 40, FlxColor.RED);
+                n.ID = d.time;
+                n.alpha = d.lane;
 
-            note.ID = noteData.time;
-            note.alpha = lane;
-            note.scale.y = noteData.sustain / 10;
+                notes.add(n);
+            }
+            else
+            {
+                var height = ((d.end/1000) - (d.time/1000)) * scrollSpeed;
 
-            notes.add(note);
+                var s = new FlxSprite(d.lane * laneWidth + laneWidth/2 - 10,
+                    strumLineY - (d.time/1000) * scrollSpeed);
+
+                s.makeGraphic(20, Std.int(height), FlxColor.GREEN);
+
+                s.ID = d.time;
+                s.alpha = d.lane;
+                s.angle = d.end;
+
+                sustains.add(s);
+            }
         }
-
-        trace("Chart Loaded!");
     }
 
     // =========================
@@ -272,47 +275,44 @@ class ChartEditorState extends FlxState
 
         var songPos = song.time / 1000;
 
+        for(line in grid.members)
+        {
+            if(line != null && line.height == 2)
+                line.y = strumLineY - (songPos * scrollSpeed) + (line.ID * beatLength * scrollSpeed);
+        }
+
         for(n in notes.members)
         {
             if(n != null)
-            {
-                var noteTime = n.ID / 1000;
-                n.y = strumLineY - ((noteTime - songPos) * scrollSpeed);
-            }
+                n.y = strumLineY - ((n.ID/1000 - songPos) * scrollSpeed);
+        }
+
+        for(s in sustains.members)
+        {
+            if(s != null)
+                s.y = strumLineY - ((s.ID/1000 - songPos) * scrollSpeed);
         }
 
         // CLICK / TAP
         if(FlxG.mouse.justPressed)
-        {
+            placeNote(FlxG.mouse.x, FlxG.mouse.y);
+
+        if(FlxG.mouse.justPressedRight)
             startHold(FlxG.mouse.x, FlxG.mouse.y);
-        }
 
-        if(FlxG.mouse.pressed)
-        {
-            updateHold(FlxG.mouse.y);
-        }
-
-        if(FlxG.mouse.justReleased)
-        {
-            finishHold(FlxG.mouse.x, FlxG.mouse.y);
-        }
+        if(FlxG.mouse.justReleasedRight)
+            endHold(FlxG.mouse.y);
 
         for(t in FlxG.touches.list)
         {
             if(t.justPressed)
+                placeNote(t.x, t.y);
+
+            if(t.justPressed && t.pressed)
                 startHold(t.x, t.y);
 
-            if(t.pressed)
-                updateHold(t.y);
-
             if(t.justReleased)
-                finishHold(t.x, t.y);
-        }
-
-        // SHORT TAP = normal note
-        if(FlxG.mouse.justPressed && !FlxG.mouse.pressed)
-        {
-            placeNote(FlxG.mouse.x, FlxG.mouse.y);
+                endHold(t.y);
         }
 
         // SAVE / LOAD
@@ -321,5 +321,12 @@ class ChartEditorState extends FlxState
 
         if(FlxG.keys.justPressed.L)
             loadChart();
+
+        // SCROLL
+        if(FlxG.mouse.wheel != 0)
+        {
+            strumLineY += FlxG.mouse.wheel * 20;
+            drawGrid();
+        }
     }
 }
