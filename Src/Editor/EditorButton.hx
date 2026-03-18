@@ -12,15 +12,25 @@ class EditorButton extends FlxGroup
     public var label:FlxText;
     public var onClick:Void->Void;
 
-    public function new(x:Float, y:Float, text:String, callback:Void->Void)
+    var baseColor:Int = FlxColor.GRAY;
+    var hoverColor:Int = FlxColor.LIGHT_GRAY;
+    var pressColor:Int = FlxColor.WHITE;
+
+    var widthSize:Int;
+    var heightSize:Int;
+
+    public function new(x:Float, y:Float, text:String, callback:Void->Void, ?w:Int = 150, ?h:Int = 50)
     {
         super();
 
-        bg = new FlxSprite(x, y);
-        bg.makeGraphic(150, 50, FlxColor.GRAY);
+        widthSize = w;
+        heightSize = h;
 
-        label = new FlxText(x, y + 15, 150, text, 16);
+        bg = new FlxSprite(x, y).makeGraphic(widthSize, heightSize, baseColor);
+
+        label = new FlxText(x, y, widthSize, text, 16);
         label.alignment = "center";
+        centerLabel();
 
         onClick = callback;
 
@@ -28,27 +38,56 @@ class EditorButton extends FlxGroup
         add(label);
     }
 
+    function centerLabel()
+    {
+        label.x = bg.x;
+        label.y = bg.y + (heightSize - label.height) / 2;
+    }
+
     override public function update(elapsed:Float)
     {
         super.update(elapsed);
 
-        var clicked:Bool = false;
+        var hover = false;
+        var pressed = false;
 
         // Mouse
-        if(FlxG.mouse.overlaps(bg) && FlxG.mouse.justPressed)
-            clicked = true;
-
-        // Touch (mobile)
-        for(touch in FlxG.touches.list)
+        if(FlxG.mouse.overlaps(bg))
         {
-            if(touch.justPressed && bg.overlapsPoint(touch.getWorldPosition()))
+            hover = true;
+            if(FlxG.mouse.pressed) pressed = true;
+            if(FlxG.mouse.justReleased && onClick != null) onClick();
+        }
+
+        // Touch
+        for(t in FlxG.touches.list)
+        {
+            var pos = t.getWorldPosition();
+            if(bg.overlapsPoint(pos))
             {
-                clicked = true;
-                break;
+                hover = true;
+                if(t.pressed) pressed = true;
+                if(t.justReleased && onClick != null) onClick();
             }
         }
 
-        if(clicked && onClick != null)
-            onClick();
+        // Visual feedback
+        if(pressed)
+        {
+            bg.color = pressColor;
+            bg.scale.set(0.95, 0.95);
+        }
+        else if(hover)
+        {
+            bg.color = hoverColor;
+            bg.scale.set(1.05, 1.05);
+        }
+        else
+        {
+            bg.color = baseColor;
+            bg.scale.set(1, 1);
+        }
+
+        centerLabel();
     }
 }
