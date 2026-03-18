@@ -14,6 +14,8 @@ import Backend.Timing.Conductor;
 import Backend.Chart.ChartLoader;
 
 import Game.Funkin.Spawner.NoteSpawner;
+import Game.Funkin.UI.PauseButton;
+import Game.Funkin.PauseSubState;
 
 import Mobile.MobileControls;
 import Mobile.TouchNotes;
@@ -60,6 +62,9 @@ class PlayState extends FlxState
     // =========================
     var spawner:NoteSpawner;
 
+    // Pause Button though to make it like the official or idk
+    var pauseButton:PauseButton;
+
     // =========================
     // MOBILE
     // =========================
@@ -98,6 +103,13 @@ class PlayState extends FlxState
 
         // NOTE SPAWNER
         spawner = new NoteSpawner(playerStrums, opponentStrums);
+
+        //For pause buttons
+        pauseButton = new PauseButton(FlxG.width - 90, 20, function()
+        {
+        openSubState(new PauseSubState());
+        });
+        add(pauseButton);
 
         // MOBILE
         mobileControls = new MobileControls();
