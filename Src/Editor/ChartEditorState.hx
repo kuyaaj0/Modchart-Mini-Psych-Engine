@@ -13,6 +13,8 @@ import sys.FileSystem;
 import sys.io.File;
 import haxe.Json;
 
+import Editor.EditorButton;
+
 class ChartEditorState extends FlxState
 {
     var song:FlxSound;
@@ -37,6 +39,25 @@ class ChartEditorState extends FlxState
     var placingHold:Bool = false;
     var holdStartTime:Float = 0;
     var holdLane:Int = 0;
+
+    // =========================
+    // ZOOM
+    // =========================
+    var zoom:Float = 1.0;
+    var minZoom:Float = 0.5;
+    var maxZoom:Float = 3.0;
+    var zoomSpeed:Float = 0.1;
+
+    // =========================
+    // UI BUTTONS
+    // =========================
+    var zoomInBtn:EditorButton;
+    var zoomOutBtn:EditorButton;
+    var saveBtn:EditorButton;
+    var loadBtn:EditorButton;
+    var pauseBtn:EditorButton;
+
+    var isPaused:Bool = false;
 
     override public function create()
     {
@@ -66,6 +87,25 @@ class ChartEditorState extends FlxState
 
         generateWaveform();
         drawGrid();
+
+        // =========================
+        // ADD BUTTONS
+        // =========================
+        zoomInBtn = new EditorButton(20, 20, 50, 40, "+", function() {
+            zoom = Math.min(maxZoom, zoom + zoomSpeed);
+        });
+        zoomOutBtn = new EditorButton(80, 20, 50, 40, "-", function() {
+            zoom = Math.max(minZoom, zoom - zoomSpeed);
+        });
+        saveBtn = new EditorButton(140, 20, 80, 40, "Save", saveChart);
+        loadBtn = new EditorButton(230, 20, 80, 40, "Load", loadChart);
+        pauseBtn = new EditorButton(320, 20, 80, 40, "Pause", togglePause);
+
+        add(zoomInBtn);
+        add(zoomOutBtn);
+        add(saveBtn);
+        add(loadBtn);
+        add(pauseBtn);
     }
 
     // =========================
@@ -90,7 +130,7 @@ class ChartEditorState extends FlxState
             bytes.position = index;
             var sample:Float = bytes.readFloat();
 
-            var h = Std.int(sample * 100);
+            var h = Std.int(sample * 100 * zoom); // apply zoom
 
             for(y in -h...h)
             {
@@ -124,7 +164,7 @@ class ChartEditorState extends FlxState
 
         while(time < 60)
         {
-            var y = strumLineY - (time * scrollSpeed);
+            var y = strumLineY - (time * scrollSpeed * zoom);
 
             var line = new FlxSprite(0, y).makeGraphic(FlxG.width, 2, FlxColor.GRAY);
 
@@ -146,12 +186,12 @@ class ChartEditorState extends FlxState
     function placeNote(x:Float, y:Float)
     {
         var lane = Std.int(x / laneWidth);
-        var time = (strumLineY - y) / scrollSpeed;
+        var time = (strumLineY - y) / (scrollSpeed * zoom);
 
         var snapStep = beatLength / snap;
         var snapped = Math.round(time / snapStep) * snapStep;
 
-        var note = new FlxSprite(lane * laneWidth + laneWidth/2 - 20, strumLineY - snapped * scrollSpeed);
+        var note = new FlxSprite(lane * laneWidth + laneWidth/2 - 20, strumLineY - snapped * scrollSpeed * zoom);
         note.makeGraphic(40, 40, FlxColor.RED);
 
         note.ID = Std.int(snapped * 1000);
@@ -167,7 +207,7 @@ class ChartEditorState extends FlxState
     {
         placingHold = true;
         holdLane = Std.int(x / laneWidth);
-        holdStartTime = (strumLineY - y) / scrollSpeed;
+        holdStartTime = (strumLineY - y) / (scrollSpeed * zoom);
     }
 
     function endHold(y:Float)
@@ -176,15 +216,15 @@ class ChartEditorState extends FlxState
 
         placingHold = false;
 
-        var endTime = (strumLineY - y) / scrollSpeed;
+        var endTime = (strumLineY - y) / (scrollSpeed * zoom);
 
         var startSnap = Math.round(holdStartTime / (beatLength / snap)) * (beatLength / snap);
         var endSnap = Math.round(endTime / (beatLength / snap)) * (beatLength / snap);
 
-        var height = (endSnap - startSnap) * scrollSpeed;
+        var height = (endSnap - startSnap) * scrollSpeed * zoom;
 
         var sustain = new FlxSprite(holdLane * laneWidth + laneWidth/2 - 10,
-            strumLineY - startSnap * scrollSpeed);
+            strumLineY - startSnap * scrollSpeed * zoom);
 
         sustain.makeGraphic(20, Std.int(height), FlxColor.GREEN);
 
@@ -221,6 +261,7 @@ class ChartEditorState extends FlxState
 
         var json = Json.stringify(data, "\t");
         File.saveContent("chart.json", json);
+        FlxG.log("Chart saved!");
     }
 
     // =========================
@@ -241,7 +282,7 @@ class ChartEditorState extends FlxState
             if(d.type == "tap")
             {
                 var n = new FlxSprite(d.lane * laneWidth + laneWidth/2 - 20,
-                    strumLineY - (d.time/1000) * scrollSpeed);
+                    strumLineY - (d.time/1000) * scrollSpeed * zoom);
 
                 n.makeGraphic(40, 40, FlxColor.RED);
                 n.ID = d.time;
@@ -251,10 +292,10 @@ class ChartEditorState extends FlxState
             }
             else
             {
-                var height = ((d.end/1000) - (d.time/1000)) * scrollSpeed;
+                var height = ((d.end/1000) - (d.time/1000)) * scrollSpeed * zoom;
 
                 var s = new FlxSprite(d.lane * laneWidth + laneWidth/2 - 10,
-                    strumLineY - (d.time/1000) * scrollSpeed);
+                    strumLineY - (d.time/1000) * scrollSpeed * zoom);
 
                 s.makeGraphic(20, Std.int(height), FlxColor.GREEN);
 
@@ -265,33 +306,47 @@ class ChartEditorState extends FlxState
                 sustains.add(s);
             }
         }
+        FlxG.log("Chart loaded!");
     }
 
     // =========================
-    // 🎮 UPDATE
+    // PAUSE
+    // =========================
+    function togglePause()
+    {
+        isPaused = !isPaused;
+        if(isPaused) song.pause();
+        else song.play();
+    }
+
+    // =========================
+    // UPDATE LOOP
     // =========================
     override public function update(elapsed:Float)
     {
         super.update(elapsed);
 
-        var songPos = song.time / 1000;
-
-        for(line in grid.members)
+        if(!isPaused)
         {
-            if(line != null && line.height == 2)
-                line.y = strumLineY - (songPos * scrollSpeed) + (line.ID * beatLength * scrollSpeed);
-        }
+            var songPos = song.time / 1000;
 
-        for(n in notes.members)
-        {
-            if(n != null)
-                n.y = strumLineY - ((n.ID/1000 - songPos) * scrollSpeed);
-        }
+            for(line in grid.members)
+            {
+                if(line != null && line.height == 2)
+                    line.y = strumLineY - (songPos * scrollSpeed * zoom) + (line.ID * beatLength * scrollSpeed * zoom);
+            }
 
-        for(s in sustains.members)
-        {
-            if(s != null)
-                s.y = strumLineY - ((s.ID/1000 - songPos) * scrollSpeed);
+            for(n in notes.members)
+            {
+                if(n != null)
+                    n.y = strumLineY - ((n.ID/1000 - songPos) * scrollSpeed * zoom);
+            }
+
+            for(s in sustains.members)
+            {
+                if(s != null)
+                    s.y = strumLineY - ((s.ID/1000 - songPos) * scrollSpeed * zoom);
+            }
         }
 
         // CLICK / TAP
@@ -329,5 +384,12 @@ class ChartEditorState extends FlxState
             strumLineY += FlxG.mouse.wheel * 20;
             drawGrid();
         }
+
+        // UPDATE BUTTONS
+        zoomInBtn.update(elapsed);
+        zoomOutBtn.update(elapsed);
+        saveBtn.update(elapsed);
+        loadBtn.update(elapsed);
+        pauseBtn.update(elapsed);
     }
 }
