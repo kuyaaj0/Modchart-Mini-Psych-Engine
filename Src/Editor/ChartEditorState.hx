@@ -4,352 +4,322 @@ import flixel.FlxState;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.group.FlxGroup;
-import flixel.text.FlxText;
 import flixel.util.FlxColor;
-import flixel.math.FlxPoint;
 import flixel.sound.FlxSound;
 
-import Backend.Timing.Conductor;
-import Editor.EditorButton;
+import openfl.media.Sound;
+import openfl.utils.ByteArray;
+
+import haxe.Json;
+import sys.io.File;
 
 class ChartEditorState extends FlxState
 {
-    // =========================
-    // DATA
-    // =========================
-    var notes:Array<Dynamic> = [];
-    var noteSprites:Array<FlxSprite> = [];
+    var song:FlxSound;
+    var soundData:Sound;
 
-    // =========================
-    // VISUALS
-    // =========================
-    var waveformGroup:FlxGroup;
-    var beatLineGroup:FlxGroup;
+    var waveform:FlxSprite;
+    var grid:FlxGroup;
+    var notes:FlxGroup;
+    var lanes:FlxGroup;
 
-    // =========================
-    // SETTINGS
-    // =========================
+    var bpm:Float = 120;
+    var beatLength:Float;
+
+    var strumLineY:Float = 500;
+    var scrollSpeed:Float = 120;
+
+    var snap:Int = 4;
+
     var laneWidth:Int = 120;
-    var startX:Int = 200;
+    var laneCount:Int = 4;
 
-    var snapStep:Float = 1;
-    var currentHold:Bool = false;
-
-    // =========================
-    // TIMELINE
-    // =========================
-    var scrollY:Float = 0;
-
-    // =========================
-    // MUSIC
-    // =========================
-    var music:FlxSound;
-    var isPlaying:Bool = false;
-
-    // =========================
-    // HOLD SYSTEM
-    // =========================
-    var holdStartTime:Float = 0;
-
-    // =========================
-    // UI
-    // =========================
-    var timeText:FlxText;
-    var infoText:FlxText;
+    var currentHold:FlxSprite;
+    var holdStartTime:Float;
 
     override public function create()
     {
         super.create();
 
-        Conductor.init(120);
+        FlxG.bgColor = FlxColor.BLACK;
 
-        waveformGroup = new FlxGroup();
-        beatLineGroup = new FlxGroup();
+        beatLength = 60 / bpm;
 
-        add(waveformGroup);
-        add(beatLineGroup);
+        soundData = Sound.fromFile("assets/music/test.ogg");
+        song = FlxG.sound.load("assets/music/test.ogg");
+        song.play();
 
-        loadMusic();
-        createUI();
-        createButtons();
+        grid = new FlxGroup();
+        add(grid);
+
+        notes = new FlxGroup();
+        add(notes);
+
+        lanes = new FlxGroup();
+        add(lanes);
+
+        waveform = new FlxSprite(0, 0);
+        waveform.makeGraphic(FlxG.width, 200, FlxColor.TRANSPARENT);
+        add(waveform);
+
+        generateWaveform();
+        drawLanes();
+        drawBeatGrid();
     }
 
+    // =========================
+    // 🎵 REAL WAVEFORM
+    // =========================
+    function generateWaveform()
+    {
+        var bytes = new ByteArray();
+        soundData.extract(bytes, 44100 * 10);
+
+        var gfx = waveform.pixels;
+        gfx.fillRect(gfx.rect, FlxColor.TRANSPARENT);
+
+        var samples = bytes.length / 4;
+        var step = Math.floor(samples / FlxG.width);
+
+        for(i in 0...FlxG.width)
+        {
+            var index = i * step * 4;
+            if(index >= bytes.length) break;
+
+            bytes.position = index;
+            var sample:Float = bytes.readFloat();
+
+            var height = Std.int(sample * 100);
+
+            for(y in -height...height)
+            {
+                var drawY = 100 + y;
+                if(drawY >= 0 && drawY < 200)
+                    gfx.setPixel32(i, drawY, FlxColor.WHITE);
+            }
+        }
+
+        waveform.dirty = true;
+    }
+
+    // =========================
+    // 🎹 LANES
+    // =========================
+    function drawLanes()
+    {
+        lanes.clear();
+
+        for(i in 0...laneCount)
+        {
+            var lane = new FlxSprite(i * laneWidth, 0);
+            lane.makeGraphic(laneWidth - 2, FlxG.height, FlxColor.fromRGB(30,30,30));
+
+            lane.ID = i;
+            lanes.add(lane);
+        }
+    }
+
+    // =========================
+    // 🟩 GRID
+    // =========================
+    function drawBeatGrid()
+    {
+        grid.clear();
+
+        var time:Float = 0;
+        var id:Int = 0;
+
+        while(time < 60)
+        {
+            var y = strumLineY - (time * scrollSpeed);
+
+            var line = new FlxSprite(0, y).makeGraphic(FlxG.width, 2, FlxColor.GRAY);
+
+            if(id % 4 == 0)
+                line.color = FlxColor.WHITE;
+
+            line.ID = id;
+            grid.add(line);
+
+            time += beatLength;
+            id++;
+        }
+    }
+
+    // =========================
+    // 🎯 PLACE NOTE
+    // =========================
+    function placeNote(x:Float, y:Float)
+    {
+        var lane = Std.int(x / laneWidth);
+        if(lane < 0 || lane >= laneCount) return;
+
+        var songTime = (strumLineY - y) / scrollSpeed;
+
+        var snapStep = beatLength / snap;
+        var snapped = Math.round(songTime / snapStep) * snapStep;
+
+        var note = new FlxSprite(lane * laneWidth + 20, strumLineY - snapped * scrollSpeed);
+        note.makeGraphic(laneWidth - 40, 40, FlxColor.RED);
+
+        note.ID = Std.int(snapped * 1000);
+        note.alpha = lane;
+
+        notes.add(note);
+    }
+
+    // =========================
+    // ⏱️ HOLD NOTES
+    // =========================
+    function startHold(x:Float, y:Float)
+    {
+        var lane = Std.int(x / laneWidth);
+        if(lane < 0 || lane >= laneCount) return;
+
+        var songTime = (strumLineY - y) / scrollSpeed;
+
+        currentHold = new FlxSprite(lane * laneWidth + 20, y);
+        currentHold.makeGraphic(laneWidth - 40, 10, FlxColor.BLUE);
+
+        holdStartTime = songTime;
+        currentHold.alpha = lane;
+
+        add(currentHold);
+    }
+
+    function updateHold(y:Float)
+    {
+        if(currentHold == null) return;
+
+        currentHold.scale.y = Math.abs((currentHold.y - y) / 10);
+    }
+
+    function finishHold(x:Float, y:Float)
+    {
+        if(currentHold == null) return;
+
+        var endTime = (strumLineY - y) / scrollSpeed;
+
+        var length = endTime - holdStartTime;
+
+        currentHold.ID = Std.int(holdStartTime * 1000);
+        currentHold.scale.y = length * scrollSpeed / 10;
+
+        notes.add(currentHold);
+        currentHold = null;
+    }
+
+    // =========================
+    // 💾 SAVE
+    // =========================
+    function saveChart()
+    {
+        var data:Array<Dynamic> = [];
+
+        for(n in notes.members)
+        {
+            if(n != null)
+            {
+                data.push({
+                    time: n.ID,
+                    lane: Std.int(n.alpha),
+                    sustain: Std.int(n.scale.y * 10)
+                });
+            }
+        }
+
+        var json = Json.stringify(data);
+        File.saveContent("chart.json", json);
+        trace("Chart Saved!");
+    }
+
+    // =========================
+    // 📂 LOAD
+    // =========================
+    function loadChart()
+    {
+        if(!FileSystem.exists("chart.json")) return;
+
+        var json = File.getContent("chart.json");
+        var data:Array<Dynamic> = Json.parse(json);
+
+        notes.clear();
+
+        for(noteData in data)
+        {
+            var time = noteData.time / 1000;
+            var lane = noteData.lane;
+
+            var note = new FlxSprite(lane * laneWidth + 20, strumLineY - time * scrollSpeed);
+            note.makeGraphic(laneWidth - 40, 40, FlxColor.RED);
+
+            note.ID = noteData.time;
+            note.alpha = lane;
+            note.scale.y = noteData.sustain / 10;
+
+            notes.add(note);
+        }
+
+        trace("Chart Loaded!");
+    }
+
+    // =========================
+    // 🎮 UPDATE
+    // =========================
     override public function update(elapsed:Float)
     {
         super.update(elapsed);
 
-        handleScroll();
-        handleInput();
+        var songPos = song.time / 1000;
 
-        if(isPlaying && music != null)
-            scrollY = music.time;
-
-        Conductor.songPosition = scrollY;
-
-        updateTimeline();
-        drawWaveform();
-        drawBeatLines();
-
-        timeText.text = "Time: " + Std.int(scrollY);
-        infoText.text = "Snap: " + snapStep + " | Hold: " + (currentHold ? "ON" : "OFF");
-    }
-
-    // =========================
-    // MUSIC
-    // =========================
-    function loadMusic():Void
-    {
-        music = FlxG.sound.load("assets/music/song.ogg");
-    }
-
-    function togglePlay():Void
-    {
-        if(music == null) return;
-
-        if(isPlaying)
+        for(n in notes.members)
         {
-            music.pause();
-            isPlaying = false;
-        }
-        else
-        {
-            music.play();
-            isPlaying = true;
-        }
-    }
-
-    // =========================
-    // SCROLL
-    // =========================
-    function handleScroll():Void
-    {
-        if(!isPlaying)
-        {
-            if(FlxG.mouse.pressed)
-                scrollY -= FlxG.mouse.deltaY;
-
-            for(touch in FlxG.touches.list)
-                if(touch.pressed)
-                    scrollY -= touch.deltaY;
-        }
-    }
-
-    // =========================
-    // TIMELINE
-    // =========================
-    function updateTimeline():Void
-    {
-        for(i in 0...noteSprites.length)
-        {
-            var note = notes[i];
-            var spr = noteSprites[i];
-
-            spr.y = (note.time - scrollY) * 0.5 + 300;
-        }
-    }
-
-    // =========================
-    // 🎵 WAVEFORM
-    // =========================
-    function drawWaveform():Void
-    {
-        waveformGroup.clear();
-
-        for(i in 0...80)
-        {
-            var t = scrollY + i * 20;
-
-            var height = Math.sin(t * 0.01) * 40 + 40;
-
-            var bar = new FlxSprite(startX - 40, i * 10);
-            bar.makeGraphic(30, Std.int(height), FlxColor.GREEN);
-
-            waveformGroup.add(bar);
-        }
-    }
-
-    // =========================
-    // 📏 BEAT LINES
-    // =========================
-    function drawBeatLines():Void
-    {
-        beatLineGroup.clear();
-
-        var beat = 60000 / Conductor.bpm;
-
-        for(i in -20...40)
-        {
-            var time = scrollY + i * beat;
-
-            var y = (time - scrollY) * 0.5 + 300;
-
-            var line = new FlxSprite(startX, y);
-
-            // Strong beat
-            if(i % 4 == 0)
-                line.makeGraphic(500, 3, FlxColor.RED);
-            else
-                line.makeGraphic(500, 1, FlxColor.WHITE);
-
-            beatLineGroup.add(line);
-        }
-    }
-
-    // =========================
-    // UI
-    // =========================
-    function createUI():Void
-    {
-        timeText = new FlxText(20, 20, 300, "", 20);
-        add(timeText);
-
-        infoText = new FlxText(20, 45, 400, "", 16);
-        add(infoText);
-    }
-
-    // =========================
-    // BUTTONS
-    // =========================
-    function createButtons():Void
-    {
-        add(new EditorButton(20, 80, "Play", togglePlay));
-        add(new EditorButton(20, 140, "Save", saveChart));
-        add(new EditorButton(20, 200, "Load", loadChart));
-
-        add(new EditorButton(20, 260, "Hold", function() {
-            currentHold = !currentHold;
-        }));
-
-        add(new EditorButton(20, 320, "Snap", function() {
-            switch(snapStep)
+            if(n != null)
             {
-                case 1: snapStep = 0.5;
-                case 0.5: snapStep = 0.25;
-                default: snapStep = 1;
+                var noteTime = n.ID / 1000;
+                n.y = strumLineY - ((noteTime - songPos) * scrollSpeed);
             }
-        }));
-    }
-
-    // =========================
-    // INPUT
-    // =========================
-    function handleInput():Void
-    {
-        for(touch in FlxG.touches.list)
-        {
-            var pos = touch.getWorldPosition();
-
-            if(touch.justPressed)
-                holdStartTime = getSnappedTime();
-
-            if(touch.justReleased)
-                placeNote(pos.x, holdStartTime, getSnappedTime());
         }
 
+        // CLICK / TAP
         if(FlxG.mouse.justPressed)
-            holdStartTime = getSnappedTime();
+        {
+            startHold(FlxG.mouse.x, FlxG.mouse.y);
+        }
+
+        if(FlxG.mouse.pressed)
+        {
+            updateHold(FlxG.mouse.y);
+        }
 
         if(FlxG.mouse.justReleased)
-            placeNote(FlxG.mouse.x, holdStartTime, getSnappedTime());
-
-        if(FlxG.mouse.justPressedRight)
-            removeNoteAt(FlxG.mouse.x, FlxG.mouse.y);
-    }
-
-    function getSnappedTime():Float
-    {
-        var beat = 60000 / Conductor.bpm;
-        return Math.floor(scrollY / (beat * snapStep)) * (beat * snapStep);
-    }
-
-    // =========================
-    // NOTES
-    // =========================
-    function placeNote(x:Float, start:Float, end:Float):Void
-    {
-        var lane = Std.int((x - startX) / laneWidth);
-        if(lane < 0 || lane >= 4) return;
-
-        var length = Math.max(0, end - start);
-
-        var note = {
-            time: start,
-            lane: lane,
-            hold: currentHold,
-            length: currentHold ? length : 0
-        };
-
-        notes.push(note);
-
-        var spr = new FlxSprite(startX + lane * laneWidth, 0);
-
-        if(currentHold)
-            spr.makeGraphic(80, Std.int(length * 0.5), FlxColor.BLUE);
-        else
-            spr.makeGraphic(80, 20, FlxColor.YELLOW);
-
-        add(spr);
-        noteSprites.push(spr);
-    }
-
-    function removeNoteAt(x:Float, y:Float):Void
-    {
-        for(i in 0...noteSprites.length)
         {
-            var spr = noteSprites[i];
-
-            if(spr.overlapsPoint(new FlxPoint(x, y)))
-            {
-                spr.kill();
-                noteSprites.splice(i, 1);
-                notes.splice(i, 1);
-                break;
-            }
+            finishHold(FlxG.mouse.x, FlxG.mouse.y);
         }
-    }
 
-    // =========================
-    // SAVE / LOAD
-    // =========================
-    function saveChart():Void
-    {
-        var data = {
-            bpm: Conductor.bpm,
-            notes: notes
-        };
-
-        var json = haxe.Json.stringify(data, "\t");
-
-        #if sys
-        sys.io.File.saveContent("assets/data/chart.json", json);
-        #end
-    }
-
-    function loadChart():Void
-    {
-        #if sys
-        var raw = sys.io.File.getContent("assets/data/chart.json");
-        var data:Dynamic = haxe.Json.parse(raw);
-
-        clearNotes();
-
-        for(note in data.notes)
+        for(t in FlxG.touches.list)
         {
-            placeNote(
-                startX + note.lane * laneWidth,
-                note.time,
-                note.time + note.length
-            );
+            if(t.justPressed)
+                startHold(t.x, t.y);
+
+            if(t.pressed)
+                updateHold(t.y);
+
+            if(t.justReleased)
+                finishHold(t.x, t.y);
         }
-        #end
-    }
 
-    function clearNotes():Void
-    {
-        for(s in noteSprites)
-            s.kill();
+        // SHORT TAP = normal note
+        if(FlxG.mouse.justPressed && !FlxG.mouse.pressed)
+        {
+            placeNote(FlxG.mouse.x, FlxG.mouse.y);
+        }
 
-        notes = [];
-        noteSprites = [];
+        // SAVE / LOAD
+        if(FlxG.keys.justPressed.S)
+            saveChart();
+
+        if(FlxG.keys.justPressed.L)
+            loadChart();
     }
 }
