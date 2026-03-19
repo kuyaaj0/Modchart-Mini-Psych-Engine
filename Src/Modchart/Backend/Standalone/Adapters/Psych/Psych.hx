@@ -1,12 +1,12 @@
-package modchart.backend.standalone.adapters.psych;
+package Modchart.Backend.Standalone.Adapters.Psych;
 
 #if (FM_ENGINE_VERSION == "1.0" || FM_ENGINE_VERSION == "0.7")
-import Backend.ClientPrefs;
+import Backend.Settings as ClientPrefs;
 import Backend.Conductor;
-import Objects.Note;
-import Objects.NoteSplash;
-import Objects.StrumNote as Strum;
-import states.PlayState;
+import Game.Funkin.Objects.Note;
+import Game.FunkinObjects.NoteSplash;
+import Game.FunkinObjects.StrumNote as Strum;
+import Game.Funkin.PlayState;
 #else
 import ClientPrefs;
 import Conductor;
